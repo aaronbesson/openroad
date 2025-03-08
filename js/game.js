@@ -508,8 +508,8 @@ class GameEngine {
         this.trees = [];
         
         // Tree generation parameters
-        const treeCount = 120;
-        const minDistanceFromTrack = 50; // Keep trees further away from track
+        const treeCount = 500;
+        const minDistanceFromTrack = 10; // Keep trees further away from track
         const treePath = 'objects/tree.glb';
         
         // Function to check if position is too close to track
@@ -1037,9 +1037,9 @@ class GameEngine {
     
     // Reset car to the start position
     resetCarToStart(car) {
-        // Calculate the midpoint of the first straight section
-        const p1 = new THREE.Vector3(-63.5, 0.1, -63.5); // Start of straight
-        const p2 = new THREE.Vector3(63.5, 0.1, -63.5);  // End of straight
+        // Use coordinates that exactly match the track path to avoid off-track detection
+        const p1 = new THREE.Vector3(-60, 0.1, -60); // Match exact track path start point
+        const p2 = new THREE.Vector3(60, 0.1, -60);  // Match exact track path straight section
         
         // Calculate the middle of the straight section (this is where the start/finish line is)
         const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
@@ -1053,11 +1053,17 @@ class GameEngine {
         // Rotate 90 degrees CCW to face along the track (toward the first turn)
         car.rotation.set(0, Math.PI/2, 0);
         
-        // Disable track checking for 2 seconds to prevent restart loops
+        // Disable track checking for a longer time (3 seconds) to prevent restart loops
         this.canResetCar = false;
+        console.log("Car reset - disabling off-track detection temporarily");
+        
         setTimeout(() => {
             this.canResetCar = true;
-        }, 2000);
+            console.log("Off-track detection re-enabled after reset");
+        }, 3000);
+        
+        // Clear the off-track timer immediately to prevent loop
+        this.offTrackStartTime = null;
         
         // Visual feedback
         this.showResetEffect();

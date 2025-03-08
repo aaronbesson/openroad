@@ -30,6 +30,7 @@ class GameEngine {
         this.bombCooldown = false; // Track if player is in bomb cooldown
         this.bombCooldownTime = 3000; // 3 seconds cooldown between bombs
         this.lastBombTime = 0; // Track when the last bomb was thrown
+        this.bombsRemaining = 3; // Player starts with 3 bombs
         this.controlsDisabled = false;
         this.controlsDisabledTimeout = null;
         this.startLinePosition = null; // Will store the start/finish line position
@@ -58,6 +59,7 @@ class GameEngine {
         this.audioContext = null;
         this.hornSound = null;
         this.collisionSound = null;
+        this.noBombsSound = null;
         
         // Setup event listeners for keyboard controls
         this.setupEventListeners();
@@ -126,6 +128,9 @@ class GameEngine {
         // Initialize off-road indicator
         this.offRoadIndicatorVisible = false;
         this.createOffRoadIndicator();
+        
+        // Initialize bomb counter display
+        this.createBombCounter();
     }
     
     // Setup event listeners
@@ -523,6 +528,11 @@ class GameEngine {
             const collisionResponse = await fetch('/soundfx/collision.mp3');
             const collisionArrayBuffer = await collisionResponse.arrayBuffer();
             this.collisionSound = await this.audioContext.decodeAudioData(collisionArrayBuffer);
+            
+            // Load error sound for when no bombs are left
+            const noBombsSoundResponse = await fetch('/sounds/error.mp3');
+            const noBombsSoundBuffer = await noBombsSoundResponse.arrayBuffer();
+            this.noBombsSound = await this.audioContext.decodeAudioData(noBombsSoundBuffer);
             
         } catch (error) {
             console.error('Error loading audio:', error);
@@ -942,6 +952,7 @@ class GameEngine {
             // Check for collisions with objects
             this.checkTreeCollisions();
             this.checkPlayerCollisions(car);
+            this.checkBombCollisions();
             
             // Check for collisions with collectibles
             this.collectiblesManager.checkCollisions(car);
@@ -1302,14 +1313,27 @@ class GameEngine {
         this.throwBomb();
     }
     
-    // Throw bomb in direction car is facing
+    // Throw bomb behind the car
     throwBomb() {
         const carProperties = this.vehicleManager.getCarProperties();
         const car = carProperties.car;
         
         if (!car || !this.bombModel) return;
         
-        console.log('Throwing bomb');
+        // Check if player has any bombs remaining
+        if (this.bombsRemaining <= 0) {
+            console.log('No bombs remaining');
+            this.playNoBombsSound(); // Play error sound
+            return;
+        }
+        
+        console.log('Throwing bomb. Remaining bombs: ' + (this.bombsRemaining - 1));
+        
+        // Decrement bomb count
+        this.bombsRemaining--;
+        
+        // Update bomb counter display
+        this.updateBombCounter();
         
         // Clone the bomb model
         const bomb = this.bombModel.clone();
@@ -1317,17 +1341,166 @@ class GameEngine {
         // Make bomb bigger by scaling it
         bomb.scale.set(2.5, 2.5, 2.5); // Increase size by 2.5x
         
-        // Set initial position slightly in front of the car
-        const carDirection = new THREE.Vector3(0, 0, 1).applyQuaternion(car.quaternion);
-        const bombPosition = car.position.clone().add(carDirection.multiplyScalar(3));
-        bombPosition.y += 1; // Raise slightly above ground
-        bomb.position.copy(bombPosition);
+        // Get car's rotation angle (y-axis rotation in radians)
+        const carAngle = car.rotation.y;
         
-        // Set initial rotation to match car
+        // Calculate position behind the car using trigonometry
+        // We need to go in the opposite direction of where the car is facing
+        const distance = 5; // Distance behind the car
+        const offsetX = Math.sin(carAngle) * distance;
+        const offsetZ = Math.cos(carAngle) * distance;
+        
+        // Position the bomb behind the car
+        bomb.position.set(
+            car.position.x - offsetX, // Subtract to go in opposite direction
+            car.position.y + 1,       // Slightly above ground
+            car.position.z - offsetZ  // Subtract to go in opposite direction
+        );
+        
+        // Set rotation to match car
         bomb.quaternion.copy(car.quaternion);
+        
+        // Add collision data to bomb
+        bomb.userData = {
+            collisionRadius: 3.0, // Bomb collision radius
+            isActive: true // Flag to track if bomb is still active
+        };
+        
+        // Log for debugging
+        console.log('Car angle:', carAngle);
+        console.log('Car position:', car.position);
+        console.log('Bomb position:', bomb.position);
         
         // Add to scene
         this.scene.add(bomb);
+        
+        // Add to bombs array for collision detection
+        this.bombs.push(bomb);
+        
+        console.log('Bomb thrown. Total active bombs:', this.bombs.length);
+    }
+    
+    // Create bomb counter display
+    createBombCounter() {
+        // Create the bomb counter container
+        const bombCounter = document.createElement('div');
+        bombCounter.id = 'bomb-counter';
+        bombCounter.style.position = 'fixed';
+        bombCounter.style.bottom = '20px';
+        bombCounter.style.right = '20px';
+        bombCounter.style.padding = '10px';
+        bombCounter.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        bombCounter.style.color = 'white';
+        bombCounter.style.borderRadius = '5px';
+        bombCounter.style.fontFamily = 'Arial, sans-serif';
+        bombCounter.style.zIndex = '1000';
+        
+        // Set initial text
+        this.updateBombCounter();
+        
+        // Add to document
+        document.body.appendChild(bombCounter);
+    }
+    
+    // Update bomb counter display
+    updateBombCounter() {
+        const bombCounter = document.getElementById('bomb-counter');
+        if (bombCounter) {
+            bombCounter.textContent = `Bombs: ${this.bombsRemaining}`;
+        }
+    }
+    
+    // Play error sound when no bombs remain
+    playNoBombsSound() {
+        if (this.audioContext && this.noBombsSound) {
+            const source = this.audioContext.createBufferSource();
+            source.buffer = this.noBombsSound;
+            source.connect(this.audioContext.destination);
+            source.start(0);
+        }
+    }
+    
+    // Check for collisions with bombs
+    checkBombCollisions() {
+        const carProperties = this.vehicleManager.getCarProperties();
+        const car = carProperties.car;
+        
+        if (!car || this.controlsDisabled) return;
+        
+        // Loop through all active bombs
+        for (let i = this.bombs.length - 1; i >= 0; i--) {
+            const bomb = this.bombs[i];
+            
+            // Skip if bomb is not active
+            if (!bomb.userData.isActive) continue;
+            
+            // Calculate distance between car and bomb
+            const distance = car.position.distanceTo(bomb.position);
+            
+            // If distance is less than combined radius, we have a collision
+            if (distance < (this.carCollisionRadius + bomb.userData.collisionRadius)) {
+                console.log('Bomb collision detected!');
+                
+                // Handle bomb collision
+                this.handleBombCollision(car, bomb);
+                
+                // Remove bomb from scene
+                this.scene.remove(bomb);
+                
+                // Mark bomb as inactive
+                bomb.userData.isActive = false;
+                
+                // Remove bomb from array
+                this.bombs.splice(i, 1);
+                
+                // Only process one collision at a time
+                break;
+            }
+        }
+    }
+    
+    // Show intense bomb explosion effect (stronger than normal collision)
+    showBombExplosionEffect() {
+        const collisionEffect = document.getElementById('collision-effect');
+        
+        if (collisionEffect) {
+            // Reset animation
+            collisionEffect.style.animation = 'none';
+            collisionEffect.offsetHeight; // Trigger reflow
+            
+            // Make the effect more intense for bombs
+            collisionEffect.style.backgroundColor = 'rgba(255, 0, 0, 0.7)'; // More opaque red
+            
+            // Show and animate with longer duration
+            collisionEffect.style.display = 'block';
+            collisionEffect.style.animation = 'flash 1s ease-in-out 2'; // Longer animation that repeats twice
+            
+            // Hide after animation completes and reset to normal
+            setTimeout(() => {
+                collisionEffect.style.display = 'none';
+                collisionEffect.style.backgroundColor = 'rgba(255, 0, 0, 0.5)'; // Reset to normal opacity
+            }, 2000); // Longer duration for bomb effect
+        }
+    }
+    
+    // Handle collision with a bomb
+    handleBombCollision(car, bomb) {
+        if (this.controlsDisabled) return; // Already handling a collision
+        
+        // Play collision sound
+        this.playCollisionSound();
+        
+        // Show intense bomb explosion effect
+        this.showBombExplosionEffect();
+        
+        // Disable controls
+        this.disableControls();
+        
+        // Reset car to start position
+        this.resetCarToStart(car);
+        
+        // Update server with new position
+        this.multiplayerManager.emitPlayerMovement(car);
     }
 }
 

@@ -9,7 +9,7 @@ class TrapsManager {
     loadAndPlaceTrapSpikes() {
         console.log('Loading trap spikes...');
         const spikePath = 'objects/trap-spikes-large.glb';
-        const spikeCount = Math.floor(Math.random() * 10) + 1; // Random number between 1 and 10
+        const spikeCount = Math.floor(Math.random() * 10) + 5; // Random number between 1 and 10
         const trackPath = [
             [-60, 0, -60],     // Start point
             [60, 0, -60],      // Long straight section

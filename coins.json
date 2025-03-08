@@ -49,15 +49,26 @@
     }
   ],
   "coinSpawnPoints": [
-    {"position": [20, 0.5, -20], "type": "coin-bronze"},
-    {"position": [25, 0.5, -10], "type": "coin-bronze"},
-    {"position": [15, 0.5, -5], "type": "coin-silver"},
-    {"position": [10, 0.5, 10], "type": "coin-bronze"},
-    {"position": [0, 0.5, 20], "type": "coin-gold"},
-    {"position": [-15, 0.5, 15], "type": "coin-silver"},
-    {"position": [-25, 0.5, 0], "type": "coin-bronze"},
-    {"position": [-15, 0.5, -15], "type": "coin-bronze"},
-    {"position": [0, 0.5, 0], "type": "jewel"},
-    {"position": [30, 0.5, -5], "type": "heart"}
+    {"position": [-50, 1.5, -60], "type": "coin-bronze"},
+    {"position": [-20, 1.5, -60], "type": "coin-bronze"},
+    {"position": [20, 1.5, -60], "type": "coin-bronze"},
+    {"position": [50, 1.5, -60], "type": "coin-silver"},
+    {"position": [80, 1.5, -45], "type": "coin-bronze"},
+    {"position": [90, 3.5, -10], "type": "coin-silver"},
+    {"position": [85, 5.5, 15], "type": "coin-gold"},
+    {"position": [65, 7.5, 35], "type": "coin-bronze"},
+    {"position": [40, 9.0, 50], "type": "coin-bronze"},
+    {"position": [20, 9.5, 60], "type": "jewel"},
+    {"position": [0, 9.0, 65], "type": "coin-gold"},
+    {"position": [-20, 8.5, 70], "type": "coin-bronze"},
+    {"position": [-40, 7.0, 65], "type": "heart"},
+    {"position": [-60, 5.5, 55], "type": "coin-silver"},
+    {"position": [-80, 4.0, 40], "type": "coin-bronze"},
+    {"position": [-90, 3.0, 20], "type": "coin-silver"},
+    {"position": [-85, 2.0, 0], "type": "coin-gold"},
+    {"position": [-80, 1.5, -20], "type": "coin-bronze"},
+    {"position": [-70, 1.0, -40], "type": "coin-bronze"},
+    {"position": [0, 1.5, 0], "type": "jewel"},
+    {"position": [40, 0.5, -40], "type": "heart"}
   ]
 } 

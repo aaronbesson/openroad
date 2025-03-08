@@ -111,39 +111,114 @@ class GameEngine {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
     
-    // Create ground
+    // Create a simple flat ground
     createGround() {
-        const groundGeometry = new THREE.PlaneGeometry(300, 300);
+        console.log('Creating a simple flat ground...');
+        
+        // Simple large flat ground
+        const groundSize = 500;
+        const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x2a6e2a,
             roughness: 0.8,
             metalness: 0.1
         });
+        
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
         this.scene.add(ground);
+        
+        // Add a distant skybox
+        this.addSkybox();
     }
     
-    // Create race track
+    // Add a skybox for better atmosphere
+    addSkybox() {
+        const skyboxSize = 900;
+        const skyboxGeometry = new THREE.BoxGeometry(skyboxSize, skyboxSize, skyboxSize);
+        
+        // Simple gradient skybox materials
+        const skyboxMaterials = [];
+        
+        // Sky color at top
+        const topColor = new THREE.Color(0x6699FF);
+        // Horizon color
+        const bottomColor = new THREE.Color(0xBBDDFF);
+        
+        // Create materials for each face with gradients
+        const directions = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
+        
+        for (let i = 0; i < 6; i++) {
+            // Create canvas for this face
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const context = canvas.getContext('2d');
+            
+            // Create gradient
+            let gradient;
+            
+            if (i === 2) { // top face (py)
+                gradient = context.createRadialGradient(
+                    256, 256, 0,
+                    256, 256, 512
+                );
+                gradient.addColorStop(0, topColor.getStyle());
+                gradient.addColorStop(1, bottomColor.getStyle());
+            } else if (i === 3) { // bottom face (ny)
+                context.fillStyle = '#2a6e2a'; // Ground color
+                context.fillRect(0, 0, 512, 512);
+                skyboxMaterials.push(new THREE.MeshBasicMaterial({
+                    map: new THREE.CanvasTexture(canvas),
+                    side: THREE.BackSide
+                }));
+                continue;
+            } else { // side faces
+                gradient = context.createLinearGradient(0, 0, 0, 512);
+                gradient.addColorStop(0, topColor.getStyle());
+                gradient.addColorStop(1, bottomColor.getStyle());
+            }
+            
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 512, 512);
+            
+            skyboxMaterials.push(new THREE.MeshBasicMaterial({
+                map: new THREE.CanvasTexture(canvas),
+                side: THREE.BackSide
+            }));
+        }
+        
+        const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterials);
+        this.scene.add(skybox);
+    }
+    
+    // Create a flat race track with elevation
     createRaceTrack() {
-        // Track points for a race track with 7 turns
+        console.log('Creating race track with fixed elevation...');
+        
+        // Track points with slightly higher elevation values
         const trackPath = [
-            [-25, -25], // Start point
-            [25, -25],  // Straight section
-            [30, -15],  // Turn 1
-            [15, -5],   // Turn 2
-            [20, 15],   // Turn 3
-            [0, 25],    // Turn 4
-            [-20, 15],  // Turn 5
-            [-30, -5],  // Turn 6
-            [-25, -25]  // Turn 7 and back to start
+            [-60, 1, -60],     // Start point - raised
+            [60, 1, -60],      // Long straight section - raised
+            [80, 1, -40],      // Turn 1 - raised
+            [90, 2, -10],      // Turn 2 with slight elevation - raised
+            [80, 3, 20],       // Turn 3 climbing - raised
+            [60, 4, 40],       // Turn 4 climbing - raised
+            [20, 5, 60],       // Turn 5 highest point - raised
+            [-20, 4, 70],      // Turn 6 starting descent - raised
+            [-50, 3, 60],      // Turn 7 descending - raised
+            [-80, 2, 40],      // Turn 8 descending - raised
+            [-90, 1.5, 10],    // Turn 9 descending - raised
+            [-80, 1, -20],     // Turn 10 back to ground level - raised
+            [-70, 1, -40],     // Turn 11 - raised
+            [-60, 1, -60]      // Turn 12 and back to start - raised
         ];
         
         // Create smooth curve from control points
         const curvePoints = [];
         trackPath.forEach(point => {
-            curvePoints.push(new THREE.Vector3(point[0], 0, point[1]));
+            curvePoints.push(new THREE.Vector3(point[0], point[1], point[2]));
         });
         
         // Create a closed curve that passes through all points
@@ -151,11 +226,11 @@ class GameEngine {
         curve.closed = true;
         
         // Track properties
-        const trackWidth = 10;
-        const trackColor = 0x212121; // Dark gray
+        const trackWidth = 15;  // Wider track
+        const trackColor = 0x333333; // Dark gray
         
-        // Create vertices for a flat ribbon following the curve
-        const numPoints = 200;
+        // Create vertices for a ribbon following the curve, including elevation
+        const numPoints = 300; // Points for smooth curve
         const points = curve.getPoints(numPoints);
         const trackGeometry = new THREE.BufferGeometry();
         
@@ -163,7 +238,7 @@ class GameEngine {
         const vertices = [];
         const normals = [];
         const indices = [];
-        const uvs = []; // Add UVs for better material rendering
+        const uvs = [];
         
         // For each point along the curve
         for (let i = 0; i <= numPoints; i++) {
@@ -177,26 +252,30 @@ class GameEngine {
             const direction = new THREE.Vector3();
             direction.subVectors(nextPoint, currentPoint).normalize();
             
-            // Calculate the perpendicular vector on the horizontal plane
-            const perpendicular = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
+            // Calculate the up vector (always straight up)
+            const up = new THREE.Vector3(0, 1, 0);
+            
+            // Calculate the right vector (perpendicular to direction and up)
+            const right = new THREE.Vector3().crossVectors(direction, up).normalize();
             
             // Create left and right vertices for the track
-            const leftPoint = new THREE.Vector3().copy(currentPoint).addScaledVector(perpendicular, trackWidth/2);
-            const rightPoint = new THREE.Vector3().copy(currentPoint).addScaledVector(perpendicular, -trackWidth/2);
+            const leftPoint = new THREE.Vector3().copy(currentPoint).addScaledVector(right, trackWidth/2);
+            const rightPoint = new THREE.Vector3().copy(currentPoint).addScaledVector(right, -trackWidth/2);
             
-            // Add vertices - keeping them flat by maintaining the same y value
-            vertices.push(leftPoint.x, 0.01, leftPoint.z);  // Left side of track
-            vertices.push(rightPoint.x, 0.01, rightPoint.z); // Right side of track
+            // Add vertices with proper elevation
+            vertices.push(leftPoint.x, leftPoint.y, leftPoint.z);  // Left side of track
+            vertices.push(rightPoint.x, rightPoint.y, rightPoint.z); // Right side of track
             
-            // Add normals (pointing up)
-            normals.push(0, 1, 0, 0, 1, 0);
+            // Add normals pointing up
+            normals.push(0, 1, 0);
+            normals.push(0, 1, 0);
             
-            // Add UVs for texturing - map U along track length and V across width
+            // Add UVs for texturing
             const uCoord = i / numPoints;
             uvs.push(uCoord, 0);
             uvs.push(uCoord, 1);
             
-            // Create triangles (two per track segment)
+            // Create triangles
             if (i < numPoints) {
                 const vertIndex = i * 2;
                 indices.push(vertIndex, vertIndex + 1, vertIndex + 2); // First triangle
@@ -207,31 +286,30 @@ class GameEngine {
         // Set geometry attributes
         trackGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
         trackGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-        trackGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); // Add UVs
+        trackGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         trackGeometry.setIndex(indices);
         trackGeometry.computeBoundingSphere();
         
-        // Create track material that responds to light like the ground
+        // Create track material
         const trackMaterial = new THREE.MeshStandardMaterial({
             color: trackColor,
-            roughness: 2,
-            metalness: 0.1,
-            emissive: 0x000000,
-            side: THREE.DoubleSide,
-            flatShading: true
+            roughness: 0.9,
+            metalness: 0.2,
+            side: THREE.DoubleSide
         });
         
-        // Create the track mesh - flat on the ground
+        // Create the track mesh
         const track = new THREE.Mesh(trackGeometry, trackMaterial);
         track.receiveShadow = true;
-        
-        // Ensure the track is slightly above the ground to prevent z-fighting
-        track.position.y = 0.02;
+        track.castShadow = true;
         
         this.scene.add(track);
         
+        // Return track info
         return {
-            startPoint: new THREE.Vector3(trackPath[0][0], 0.1, trackPath[0][1])
+            startPoint: new THREE.Vector3(trackPath[0][0], trackPath[0][1] + 0.5, trackPath[0][2]),
+            trackPath: trackPath,
+            curve: curve
         };
     }
     
@@ -267,83 +345,53 @@ class GameEngine {
         }
     }
     
-    // Add random trees for obstacles and decoration
+    // Add random trees for decoration
     addRandomTrees() {
-        console.log('Adding random trees to the scene...');
+        console.log('Adding simple trees to the scene...');
         
         // Clear existing trees array
         this.trees = [];
         
         // Tree generation parameters
-        const treeCount = 20;
-        const minDistanceFromTrack = 8;
-        const trackWidth = 10;
-        const safeDistance = minDistanceFromTrack + trackWidth/2;
+        const treeCount = 30;
+        const minDistanceFromTrack = 20; // Keep trees well away from track
         const treePath = 'objects/tree.glb';
         
-        // Track points from createRaceTrack function
-        const trackPath = [
-            [-25, -25], // Start point
-            [25, -25],  // Straight section
-            [30, -15],  // Turn 1
-            [15, -5],   // Turn 2
-            [20, 15],   // Turn 3
-            [0, 25],    // Turn 4
-            [-20, 15],  // Turn 5
-            [-30, -5],  // Turn 6
-            [-25, -25]  // Turn 7 and back to start
-        ];
-        
-        // Convert track points to Vector3 for distance calculations
-        const trackPoints = trackPath.map(point => new THREE.Vector3(point[0], 0, point[1]));
-        
         // Function to check if position is too close to track
-        const isTooCloseToTrack = (position) => {
-            // Check minimum distance to any track segment
-            for (let i = 0; i < trackPoints.length - 1; i++) {
-                const start = trackPoints[i];
-                const end = trackPoints[i + 1];
-                
-                // Create a line from start to end
-                const line = new THREE.Line3(start, end);
-                
-                // Get closest point on line to position
-                const closestPoint = new THREE.Vector3();
-                line.closestPointToPoint(position, true, closestPoint);
-                
-                // Calculate distance to closest point
-                const distance = position.distanceTo(closestPoint);
-                
-                // If too close to any segment, return true
-                if (distance < safeDistance) {
-                    return true;
-                }
-            }
-            return false;
+        const isTooCloseToTrack = (x, z) => {
+            // Simple check - approximate track area
+            const trackCenterX = 0;
+            const trackCenterZ = 0;
+            const trackRadius = 100; // Rough estimate of track area
+            
+            // Distance from track center
+            const distanceFromCenter = Math.sqrt(
+                Math.pow(x - trackCenterX, 2) + 
+                Math.pow(z - trackCenterZ, 2)
+            );
+            
+            return distanceFromCenter < trackRadius && distanceFromCenter > trackRadius - minDistanceFromTrack;
         };
         
         // Generate and place trees
         let treesPlaced = 0;
         let attempts = 0;
-        const maxAttempts = 100; // Limit attempts to prevent infinite loop
+        const maxAttempts = 100;
         
         while (treesPlaced < treeCount && attempts < maxAttempts) {
             attempts++;
             
-            // Generate random position within ground boundaries
-            const x = Math.random() * 280 - 140; // -140 to 140
-            const z = Math.random() * 280 - 140; // -140 to 140
-            
-            // Create position vector
-            const position = new THREE.Vector3(x, 0, z);
+            // Generate random position
+            const x = Math.random() * 400 - 200; // -200 to 200
+            const z = Math.random() * 400 - 200; // -200 to 200
             
             // Skip if too close to track
-            if (isTooCloseToTrack(position)) {
+            if (isTooCloseToTrack(x, z)) {
                 continue;
             }
             
-            // Random scale variation
-            const scale = 2 + Math.random() * 3; // Scale between 2 and 5
+            // Random scale
+            const scale = 2 + Math.random() * 3;
             
             // Load tree model
             this.loader.load(
@@ -351,25 +399,18 @@ class GameEngine {
                 (gltf) => {
                     const tree = gltf.scene;
                     
-                    // Position the tree
+                    // Position tree on ground
                     tree.position.set(x, 0, z);
                     tree.scale.set(scale, scale, scale);
-                    
-                    // Random rotation for variety
                     tree.rotation.y = Math.random() * Math.PI * 2;
                     
-                    // Add collision data to tree
-                    tree.userData.isTree = true;
-                    tree.userData.collisionRadius = 1.5 * scale; // Scale-based collision radius
-                    
-                    // Add to scene
                     this.scene.add(tree);
                     
                     // Add to trees array for collision detection
                     this.trees.push({
                         object: tree,
                         position: new THREE.Vector3(x, 0, z),
-                        radius: 0.3 * scale // Reduced collision radius for more accuracy
+                        radius: 0.4 * scale
                     });
                     
                     treesPlaced++;
@@ -377,23 +418,7 @@ class GameEngine {
                 undefined,
                 (error) => {
                     console.error('Error loading tree model:', error);
-                    
-                    // Create fallback tree if model fails to load
-                    const geometry = new THREE.ConeGeometry(2, 5, 8);
-                    const material = new THREE.MeshStandardMaterial({ color: 0x009900 });
-                    const cone = new THREE.Mesh(geometry, material);
-                    cone.position.set(x, 2.5, z);
-                    cone.castShadow = true;
-                    this.scene.add(cone);
-                    
-                    // Add fallback tree to trees array
-                    this.trees.push({
-                        object: cone,
-                        position: new THREE.Vector3(x, 0, z),
-                        radius: 1.0 // Reduced fixed collision radius for fallback trees
-                    });
-                    
-                    treesPlaced++;
+                    treesPlaced++; // Skip to next tree
                 }
             );
         }
@@ -607,9 +632,6 @@ class GameEngine {
             
             let hasMoved = false;
             
-            // For debugging only - log to verify control state
-            // console.log('Control state:', this.controlsDisabled, this.keys);
-            
             // Only process controls if not disabled from a collision
             if (!this.controlsDisabled) {
                 // Forward movement with either W or ArrowUp
@@ -634,6 +656,11 @@ class GameEngine {
                 }
             }
             
+            // If car moved, adjust its height to match track
+            if (hasMoved) {
+                this.adjustCarHeight(car);
+            }
+            
             // If car moved, send update to server
             if (hasMoved) {
                 this.multiplayerManager.emitPlayerMovement(car);
@@ -643,12 +670,10 @@ class GameEngine {
             const cameraOffset = new THREE.Vector3(0, 15, -20); // Position camera above and behind car
             const cameraPosition = new THREE.Vector3().copy(car.position).add(cameraOffset);
             this.camera.position.lerp(cameraPosition, 0.1); // Smooth camera movement
-            this.camera.lookAt(car.position.x, 0, car.position.z); // Look at car
+            this.camera.lookAt(car.position.x, car.position.y, car.position.z); // Look at car
             
             // Check for collisions with objects
             this.checkTreeCollisions();
-            
-            // Check for collisions with other players' cars - this was missing!
             this.checkPlayerCollisions(car);
             
             // Check for collisions with collectibles
@@ -725,6 +750,66 @@ class GameEngine {
         console.log('Handling other player collectible:', data);
         // Tell collectibles manager to mark this item as collected by remote player
         this.collectiblesManager.markCollected(data.itemId, data.playerId);
+    }
+    
+    // New method to adjust car height based on track position
+    adjustCarHeight(car) {
+        // Simplified track data with updated heights
+        const trackPath = [
+            [-60, 1, -60],     // Start point - raised
+            [60, 1, -60],      // Long straight section - raised
+            [80, 1, -40],      // Turn 1 - raised
+            [90, 2, -10],      // Turn 2 with slight elevation - raised
+            [80, 3, 20],       // Turn 3 climbing - raised
+            [60, 4, 40],       // Turn 4 climbing - raised
+            [20, 5, 60],       // Turn 5 highest point - raised
+            [-20, 4, 70],      // Turn 6 starting descent - raised
+            [-50, 3, 60],      // Turn 7 descending - raised
+            [-80, 2, 40],      // Turn 8 descending - raised
+            [-90, 1.5, 10],    // Turn 9 descending - raised
+            [-80, 1, -20],     // Turn 10 back to ground level - raised
+            [-70, 1, -40],     // Turn 11 - raised
+            [-60, 1, -60]      // Turn 12 and back to start - raised
+        ];
+        
+        // Create a curve for interpolation
+        const spline = new THREE.CatmullRomCurve3(
+            trackPath.map(p => new THREE.Vector3(p[0], p[1], p[2]))
+        );
+        spline.closed = true;
+        
+        // Get car's horizontal position
+        const carPos = car.position;
+        
+        // Find closest point on track
+        let minDistance = Infinity;
+        let closestY = 0;
+        
+        // Sample points along the track
+        const samples = 100;
+        for (let i = 0; i < samples; i++) {
+            const t = i / samples;
+            const trackPoint = spline.getPointAt(t);
+            
+            // Calculate horizontal distance only
+            const distance = Math.sqrt(
+                Math.pow(carPos.x - trackPoint.x, 2) + 
+                Math.pow(carPos.z - trackPoint.z, 2)
+            );
+            
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestY = trackPoint.y;
+            }
+        }
+        
+        // Set car height based on closest track point
+        // 0.5 is an offset for the car's wheels/chassis
+        if (minDistance < 25) { // Only adjust height when close to track
+            car.position.y = closestY + 0.5;
+        } else {
+            car.position.y = 0.5; // Default height when off-track
+        }
     }
 }
 

@@ -91,6 +91,9 @@ class CollectiblesManager {
             const collectibleType = spawnPoint.type;
             const position = new THREE.Vector3(...spawnPoint.position);
             
+            // Adjust height to ensure collectible is above track
+            position.y += 1.5; // Float 1.5 units above the track
+            
             // Find collectible data
             const collectibleData = this.collectiblesData.find(c => c.id === collectibleType);
             if (!collectibleData) {
@@ -104,6 +107,7 @@ class CollectiblesManager {
     
     // Spawn a single collectible
     spawnCollectible(collectibleData, position, id) {
+        // Load collectible model
         this.loader.load(
             'objects/' + collectibleData.model,
             (gltf) => {
@@ -116,6 +120,9 @@ class CollectiblesManager {
                 // Position the collectible
                 collectible.position.copy(position);
                 
+                // Adjust height based on track position
+                this.adjustCollectibleHeight(collectible);
+                
                 // Add to scene
                 this.scene.add(collectible);
                 
@@ -124,17 +131,18 @@ class CollectiblesManager {
                     id: id,
                     type: collectibleData.id,
                     object: collectible,
-                    position: position,
+                    position: collectible.position.clone(), // Use adjusted position
                     collisionRadius: scale * 0.5, // Adjust based on model size
                     collected: false,
                     respawnTime: collectibleData.respawnTime || 10000,
                     rotationSpeed: collectibleData.rotationSpeed || 1.0,
-                    data: collectibleData
+                    data: collectibleData,
+                    baseY: collectible.position.y // Store base Y for floating animation
                 };
                 
                 this.spawnedCollectibles.push(collectibleInfo);
                 
-                console.log(`Spawned collectible ${collectibleData.name} at`, position);
+                console.log(`Spawned collectible ${collectibleData.name} at`, collectible.position);
             },
             undefined,
             (error) => {
@@ -143,34 +151,107 @@ class CollectiblesManager {
         );
     }
     
+    // New method to adjust collectible height based on track position
+    adjustCollectibleHeight(collectible) {
+        // Simple track data with elevation - match the updates in game.js
+        const trackPath = [
+            [-60, 1, -60],     // Start point - raised
+            [60, 1, -60],      // Long straight section - raised
+            [80, 1, -40],      // Turn 1 - raised
+            [90, 2, -10],      // Turn 2 with slight elevation - raised
+            [80, 3, 20],       // Turn 3 climbing - raised
+            [60, 4, 40],       // Turn 4 climbing - raised
+            [20, 5, 60],       // Turn 5 highest point - raised
+            [-20, 4, 70],      // Turn 6 starting descent - raised
+            [-50, 3, 60],      // Turn 7 descending - raised
+            [-80, 2, 40],      // Turn 8 descending - raised
+            [-90, 1.5, 10],    // Turn 9 descending - raised
+            [-80, 1, -20],     // Turn 10 back to ground level - raised
+            [-70, 1, -40],     // Turn 11 - raised
+            [-60, 1, -60]      // Turn 12 and back to start - raised
+        ];
+        
+        // Create a curve for interpolation
+        const spline = new THREE.CatmullRomCurve3(
+            trackPath.map(p => new THREE.Vector3(p[0], p[1], p[2]))
+        );
+        spline.closed = true;
+        
+        // Get collectible's horizontal position
+        const pos = collectible.position;
+        
+        // Find closest point on track
+        let minDistance = Infinity;
+        let closestY = 0;
+        
+        // Sample points along the track
+        const samples = 100;
+        for (let i = 0; i < samples; i++) {
+            const t = i / samples;
+            const trackPoint = spline.getPointAt(t);
+            
+            // Calculate horizontal distance only
+            const distance = Math.sqrt(
+                Math.pow(pos.x - trackPoint.x, 2) + 
+                Math.pow(pos.z - trackPoint.z, 2)
+            );
+            
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestY = trackPoint.y;
+            }
+        }
+        
+        // Set collectible height based on closest track point
+        // Float only 0.7 units above the track (much lower than before)
+        collectible.position.y = closestY + 0.7;
+    }
+    
     // Update collectibles (rotation, respawn)
     update(delta) {
+        // Update each collectible
         this.spawnedCollectibles.forEach(collectible => {
-            if (!collectible.collected && collectible.object) {
-                // Rotate the collectible
-                collectible.object.rotation.y += collectible.rotationSpeed * delta;
+            if (collectible.collected) {
+                return; // Skip collected items
+            }
+            
+            const object = collectible.object;
+            
+            // Rotate the collectible
+            object.rotation.y += collectible.rotationSpeed * delta;
+            
+            // Floating animation
+            if (collectible.baseY) {
+                const floatSpeed = 1.5; // Speed of floating
+                const floatHeight = 0.2; // Height of float
                 
-                // Optional: Add floating animation
-                collectible.object.position.y = collectible.position.y + Math.sin(Date.now() * 0.002) * 0.1;
+                // Float up and down
+                object.position.y = collectible.baseY + Math.sin(performance.now() * 0.001 * floatSpeed) * floatHeight;
             }
         });
     }
     
-    // Check for collisions with player car
+    // Check for collisions with car
     checkCollisions(car) {
         if (!car) return;
         
         const carPosition = car.position.clone();
-        const carCollisionRadius = 1.2; // Same as in collision detection
+        // Lower the vertical check position to match where collectibles are
+        carPosition.y = carPosition.y - 0.3;
         
         this.spawnedCollectibles.forEach(collectible => {
-            if (!collectible.collected && collectible.object) {
-                const distance = carPosition.distanceTo(collectible.position);
-                
-                // If distance is less than combined radius, we have a collision
-                if (distance < (carCollisionRadius + collectible.collisionRadius)) {
-                    this.collectItem(collectible);
-                }
+            if (collectible.collected) return;
+
+            // More lenient collision radius for easier collection
+            const collisionDistance = collectible.collisionRadius * 2.0;
+            const distance = collectible.object.position.distanceTo(carPosition);
+            
+            // More lenient height check
+            const heightDiff = Math.abs(collectible.object.position.y - carPosition.y);
+            const maxHeightDiff = 2.0; // Increased height tolerance
+            
+            if (distance < collisionDistance && heightDiff < maxHeightDiff) {
+                this.collectItem(collectible);
             }
         });
     }

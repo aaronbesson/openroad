@@ -157,17 +157,45 @@ class VehicleManager {
         
         // If no spawn point provided, generate a random one
         if (!spawnPoint) {
-            spawnPoint = this.getRandomSpawnPoint();
+            // Check if this is the airplane to spawn it higher
+            const isAirplane = vehicle && vehicle.id === 'airplane';
+            spawnPoint = this.getRandomSpawnPoint(isAirplane);
         }
+        
+        // Check if this is the airplane
+        const isAirplane = vehicle && vehicle.id === 'airplane';
         
         this.loader.load(
             'models/' + modelFile,
             (gltf) => {
-                this.currentCar = gltf.scene;
+                if (isAirplane) {
+                    // For airplane, create a container to handle rotation properly
+                    const container = new THREE.Group();
+                    
+                    // Add the loaded model to the container
+                    container.add(gltf.scene);
+                    
+                    // Set the container as our current car
+                    this.currentCar = container;
+                    
+                    // Position container at spawn point
+                    container.position.copy(spawnPoint.position);
+                    container.rotation.y = spawnPoint.rotation;
+                    
+                    // Rotate the airplane model inside the container
+                    // Using a large value to ensure rotation is noticeable
+                    gltf.scene.rotation.y = - Math.PI / 2; // 180 degrees
+                    
+                    console.log("AIRPLANE LOADED - Applied rotation to model in container");
+                } else {
+                    // For normal vehicles
+                    this.currentCar = gltf.scene;
+                    
+                    // Position car at spawn point
+                    this.currentCar.position.copy(spawnPoint.position);
+                    this.currentCar.rotation.y = spawnPoint.rotation;
+                }
                 
-                // Position car at spawn point
-                this.currentCar.position.copy(spawnPoint.position);
-                this.currentCar.rotation.y = spawnPoint.rotation;
                 this.scene.add(this.currentCar);
                 
                 // Add headlights to the car
@@ -290,30 +318,39 @@ class VehicleManager {
     }
     
     // Get a random spawn point on the map
-    getRandomSpawnPoint() {
+    getRandomSpawnPoint(isAirplane = false) {
+        // Get starting position
+        let position;
+        let rotation;
+        
         // Check if we have a specific start line position from the game
         if (window.gameEngine && window.gameEngine.startLinePosition) {
             // Use the start line position which is set in the GameEngine
-            return {
-                position: window.gameEngine.startLinePosition,
-                rotation: Math.PI / 2 // Car faces 90 degrees counter-clockwise (left) from the Z axis
-            };
+            position = window.gameEngine.startLinePosition.clone();
+            rotation = Math.PI / 2; // Vehicle faces 90 degrees counter-clockwise (left) from the Z axis
+        } else {
+            // Fallback to random position if no start line defined
+            const mapSize = 100;
+            const padding = 15;
+            
+            // Random position within the map boundaries
+            const randomX = (Math.random() * (mapSize - 2 * padding)) - (mapSize / 2 - padding);
+            const randomZ = (Math.random() * (mapSize - 2 * padding)) - (mapSize / 2 - padding);
+            
+            // Random rotation (facing any direction)
+            rotation = Math.random() * Math.PI * 2;
+            
+            position = new THREE.Vector3(randomX, 0.1, randomZ);
         }
         
-        // Fallback to random position if no start line defined
-        const mapSize = 100;
-        const padding = 15;
-        
-        // Random position within the map boundaries
-        const randomX = (Math.random() * (mapSize - 2 * padding)) - (mapSize / 2 - padding);
-        const randomZ = (Math.random() * (mapSize - 2 * padding)) - (mapSize / 2 - padding);
-        
-        // Random rotation (facing any direction)
-        const randomRotation = Math.random() * Math.PI * 2;
+        // If this is the airplane, set its Y position higher for flying
+        if (isAirplane) {
+            position.y = 30; // Start the airplane high in the air
+        }
         
         return {
-            position: new THREE.Vector3(randomX, 0.1, randomZ),
-            rotation: randomRotation
+            position: position,
+            rotation: rotation
         };
     }
     
@@ -396,25 +433,55 @@ class VehicleManager {
             this.previewCar = null;
         }
         
+        // Check if this is the airplane model
+        const isAirplane = modelFile === 'airplane.glb';
+        
         this.loader.load(
             'models/' + modelFile,
             (gltf) => {
-                this.previewCar = gltf.scene.clone();
+                if (isAirplane) {
+                    // For airplane, create a container to handle rotation properly
+                    const container = new THREE.Group();
+                    
+                    // Clone the loaded model and add to container
+                    const model = gltf.scene.clone();
+                    container.add(model);
+                    
+                    // Set the preview car to the container
+                    this.previewCar = container;
+                    
+                    // Scale the container for better visibility
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3()).length();
+                    const scale = 2.5 / size;
+                    container.scale.set(scale, scale, scale);
+                    
+                    // Center the container
+                    container.position.y = 0.05; // Slight lift from ground
+                    
+                    // Rotate the airplane model inside the container
+                    model.rotation.y = Math.PI; // 180 degrees
+                    
+                    console.log("AIRPLANE PREVIEW LOADED - Applied rotation to model in container");
+                } else {
+                    // For normal vehicles
+                    this.previewCar = gltf.scene.clone();
+                    
+                    // Scale and position the car for better visibility
+                    const box = new THREE.Box3().setFromObject(this.previewCar);
+                    const size = box.getSize(new THREE.Vector3()).length();
+                    const scale = 2.5 / size;
+                    
+                    this.previewCar.scale.set(scale, scale, scale);
+                    
+                    // Center the car
+                    box.setFromObject(this.previewCar);
+                    box.getCenter(this.previewCar.position);
+                    this.previewCar.position.multiplyScalar(-1);
+                    this.previewCar.position.y = 0.05; // Slight lift from ground
+                }
                 
-                // Scale and position the car for better visibility
-                const box = new THREE.Box3().setFromObject(this.previewCar);
-                const size = box.getSize(new THREE.Vector3()).length();
-                const scale = 2.5 / size;
-                
-                this.previewCar.scale.set(scale, scale, scale);
-                
-                // Center the car
-                box.setFromObject(this.previewCar);
-                box.getCenter(this.previewCar.position);
-                this.previewCar.position.multiplyScalar(-1);
-                this.previewCar.position.y = 0.05; // Slight lift from ground
-                
-                // Add car to preview scene
+                // Add to preview scene
                 this.previewScene.add(this.previewCar);
                 
                 console.log('Preview car loaded:', modelFile);

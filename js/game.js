@@ -55,7 +55,13 @@ class GameEngine {
             w: false,
             a: false,
             s: false,
-            d: false
+            d: false,
+            q: false,
+            e: false,
+            r: false,
+            f: false,
+            z: false,
+            c: false
         };
         
         // Collision parameters
@@ -212,8 +218,8 @@ class GameEngine {
         for (let i = 0; i < 6; i++) {
             // Create canvas for this face
             const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 512;
+            canvas.width = 1440;
+            canvas.height = 1440;
             const context = canvas.getContext('2d');
             
             // Create gradient
@@ -632,35 +638,75 @@ class GameEngine {
     
     // Key down event handler
     onKeyDown(event) {
-        // Check if key is in the keys object before setting its state
+        // Handle regular keys in the keys object
         if (event.key in this.keys) {
             this.keys[event.key] = true;
         }
         
-        // Toggle headlights with spacebar
-        if (event.code === 'Space') {
-            this.vehicleManager.toggleHeadlights();
-        }
-        
-        // Sound horn with 'H' key
-        if (event.code === 'KeyH') {
-            this.playHorn();
-            this.multiplayerManager.emitHornSound();
+        // Handle keyboard keys that might come in different forms
+        switch(event.code) {
+            case 'KeyQ':
+                this.keys.q = true;
+                break;
+            case 'KeyE':
+                this.keys.e = true;
+                break;
+            case 'KeyR':
+                this.keys.r = true;
+                break;
+            case 'KeyF':
+                this.keys.f = true;
+                break;
+            case 'KeyZ':
+                this.keys.z = true;
+                break;
+            case 'KeyC':
+                this.keys.c = true;
+                break;
+            case 'Space':
+                this.vehicleManager.toggleHeadlights();
+                break;
+            case 'KeyH':
+                this.playHorn();
+                this.multiplayerManager.emitHornSound();
+                break;
         }
         
         // For debugging only - log to verify key events are being captured
-        console.log('Key down:', event.key, this.keys);
+        console.log('Key down:', event.key, event.code, this.keys);
     }
     
     // Key up event handler
     onKeyUp(event) {
-        // Check if key is in the keys object before setting its state
+        // Handle regular keys in the keys object
         if (event.key in this.keys) {
             this.keys[event.key] = false;
         }
         
+        // Handle keyboard keys that might come in different forms
+        switch(event.code) {
+            case 'KeyQ':
+                this.keys.q = false;
+                break;
+            case 'KeyE':
+                this.keys.e = false;
+                break;
+            case 'KeyR':
+                this.keys.r = false;
+                break;
+            case 'KeyF':
+                this.keys.f = false;
+                break;
+            case 'KeyZ':
+                this.keys.z = false;
+                break;
+            case 'KeyC':
+                this.keys.c = false;
+                break;
+        }
+        
         // For debugging only - log to verify key events are being captured
-        console.log('Key up:', event.key, this.keys);
+        console.log('Key up:', event.key, event.code, this.keys);
     }
     
     // Play horn sound
@@ -835,6 +881,9 @@ class GameEngine {
             const acceleration = carProperties.acceleration;
             const vehicleId = carProperties.vehicleId; // Get the vehicle ID
             
+            // Check if vehicle is the airplane
+            const isAirplane = vehicleId === 'airplane';
+            
             // Check if vehicle is off-road capable
             const isOffRoadCapable = ['tractor', 'truck', 'suv', 'suv-luxury', 'truck-flat', 'tractor-shovel', 'tractor-police'].includes(vehicleId);
             
@@ -843,7 +892,7 @@ class GameEngine {
             
             // Limit speed for off-road vehicles when off track
             let currentCarSpeed = carSpeed;
-            if (isOffRoadCapable && !isOnTrack) {
+            if (!isAirplane && isOffRoadCapable && !isOnTrack) {
                 // Limit speed to 6 when off-road
                 currentCarSpeed = Math.min(carSpeed, 6);
                 
@@ -862,33 +911,100 @@ class GameEngine {
             
             // Only process controls if not disabled from a collision
             if (!this.controlsDisabled) {
-                // Forward movement with either W or ArrowUp
-                if (this.keys.ArrowUp || this.keys.w) {
-                    car.translateZ(currentCarSpeed * acceleration * delta); // Use adjusted speed
-                    hasMoved = true;
-                }
-                // Backward movement with either S or ArrowDown
-                if (this.keys.ArrowDown || this.keys.s) {
-                    car.translateZ(-currentCarSpeed * 0.7 * delta); // Use adjusted speed
-                    hasMoved = true;
-                }
-                // Left turn with either A or ArrowLeft
-                if (this.keys.ArrowLeft || this.keys.a) {
-                    car.rotation.y += turnSpeed * delta; // Turn left
-                    hasMoved = true;
-                }
-                // Right turn with either D or ArrowRight
-                if (this.keys.ArrowRight || this.keys.d) {
-                    car.rotation.y -= turnSpeed * delta; // Turn right
-                    hasMoved = true;
+                if (isAirplane) {
+                    // Special flying controls for airplane
+                    
+                    // Forward/backward movement
+                    if (this.keys.ArrowUp || this.keys.w) {
+                        car.translateZ(currentCarSpeed * acceleration * delta);
+                        hasMoved = true;
+                    }
+                    if (this.keys.ArrowDown || this.keys.s) {
+                        car.translateZ(-currentCarSpeed * 0.7 * delta);
+                        hasMoved = true;
+                    }
+                    
+                    // Left/right turn
+                    if (this.keys.ArrowLeft || this.keys.a) {
+                        car.rotation.y += turnSpeed * delta;
+                        hasMoved = true;
+                    }
+                    if (this.keys.ArrowRight || this.keys.d) {
+                        car.rotation.y -= turnSpeed * delta;
+                        hasMoved = true;
+                    }
+                    
+                    // Vertical movement for flying (Q to go up, E to go down)
+                    if (this.keys.q) {
+                        car.position.y += currentCarSpeed * acceleration * delta * 0.5;
+                        hasMoved = true;
+                    }
+                    if (this.keys.e) {
+                        car.position.y -= currentCarSpeed * acceleration * delta * 0.5;
+                        // Prevent going below ground level
+                        car.position.y = Math.max(car.position.y, 1.0);
+                        hasMoved = true;
+                    }
+                    
+                    // Pitch control (looking up/down) with R and F keys
+                    if (this.keys.r) {
+                        car.rotation.x -= turnSpeed * delta * 0.5; // Pitch up
+                        // Limit maximum pitch
+                        car.rotation.x = Math.max(car.rotation.x, -Math.PI / 4);
+                        hasMoved = true;
+                    }
+                    if (this.keys.f) {
+                        car.rotation.x += turnSpeed * delta * 0.5; // Pitch down
+                        // Limit maximum pitch
+                        car.rotation.x = Math.min(car.rotation.x, Math.PI / 4);
+                        hasMoved = true;
+                    }
+                    
+                    // Roll control (banking left/right) with Z and C keys
+                    if (this.keys.z) {
+                        car.rotation.z += turnSpeed * delta * 0.5; // Roll left
+                        // Limit maximum roll
+                        car.rotation.z = Math.min(car.rotation.z, Math.PI / 4);
+                        hasMoved = true;
+                    }
+                    if (this.keys.c) {
+                        car.rotation.z -= turnSpeed * delta * 0.5; // Roll right
+                        // Limit maximum roll
+                        car.rotation.z = Math.max(car.rotation.z, -Math.PI / 4);
+                        hasMoved = true;
+                    }
+                } else {
+                    // Regular car controls
+                    // Forward movement with either W or ArrowUp
+                    if (this.keys.ArrowUp || this.keys.w) {
+                        car.translateZ(currentCarSpeed * acceleration * delta); // Use adjusted speed
+                        hasMoved = true;
+                    }
+                    // Backward movement with either S or ArrowDown
+                    if (this.keys.ArrowDown || this.keys.s) {
+                        car.translateZ(-currentCarSpeed * 0.7 * delta); // Use adjusted speed
+                        hasMoved = true;
+                    }
+                    // Left turn with either A or ArrowLeft
+                    if (this.keys.ArrowLeft || this.keys.a) {
+                        car.rotation.y += turnSpeed * delta; // Turn left
+                        hasMoved = true;
+                    }
+                    // Right turn with either D or ArrowRight
+                    if (this.keys.ArrowRight || this.keys.d) {
+                        car.rotation.y -= turnSpeed * delta; // Turn right
+                        hasMoved = true;
+                    }
                 }
             }
             
-            // Always adjust car height, even when not moving
-            this.adjustCarHeight(car);
+            // Only adjust car height for non-airplane vehicles
+            if (!isAirplane) {
+                this.adjustCarHeight(car);
+            }
             
-            // Check if car is on track or off track
-            if (this.canResetCar) {
+            // Check if car is on track or off track - skip for airplane
+            if (this.canResetCar && !isAirplane) {
                 const isOnTrack = this.isCarOnTrack(car);
                 
                 // Check if near the start line - never auto-reset in this area
@@ -930,18 +1046,29 @@ class GameEngine {
                 this.multiplayerManager.emitPlayerMovement(car);
             }
             
-            // Improved camera with height offset
-            const cameraHeight = 15;
-            const cameraDistance = 20;
+            // Camera settings
+            let cameraHeight, cameraDistance, lookAtOffset;
             
-            // Position camera above and behind car
+            if (isAirplane) {
+                // Airplane camera - higher and farther back for better flying view
+                cameraHeight = 20;
+                cameraDistance = 40;
+                lookAtOffset = 5; // Look further ahead when flying
+            } else {
+                // Normal car camera
+                cameraHeight = 15;
+                cameraDistance = 20;
+                lookAtOffset = 1;
+            }
+            
+            // Position camera above and behind car/airplane
             const cameraOffset = new THREE.Vector3(
                 0,
                 cameraHeight,
                 -cameraDistance
             );
             
-            // Calculate desired camera position based on car position and rotation
+            // Calculate desired camera position based on vehicle position and rotation
             const cameraQuat = new THREE.Quaternion().copy(car.quaternion);
             cameraOffset.applyQuaternion(cameraQuat);
             const cameraPosition = new THREE.Vector3().copy(car.position).add(cameraOffset);
@@ -949,24 +1076,26 @@ class GameEngine {
             // Apply camera position with slight smoothing
             this.camera.position.lerp(cameraPosition, 0.1);
             
-            // Look at car with slight height offset for better view
+            // Look at vehicle with appropriate height offset
             const lookAtPos = new THREE.Vector3(
                 car.position.x,
-                car.position.y + 1, // Look slightly above car
+                car.position.y + lookAtOffset,
                 car.position.z
             );
             this.camera.lookAt(lookAtPos);
             
-            // Check for collisions with objects
-            this.checkTreeCollisions();
-            this.checkPlayerCollisions(car);
-            this.checkBombCollisions();
-            
-            // Check for collisions with collectibles
-            this.collectiblesManager.checkCollisions(car);
-
-            // Check for collisions with trap spikes
-            this.trapsManager.checkCollisions(car);
+            // Check for collisions - skip for airplane if it's high enough
+            if (!isAirplane || car.position.y < 5) {
+                this.checkTreeCollisions();
+                this.checkPlayerCollisions(car);
+                this.checkBombCollisions();
+                
+                // Check for collisions with collectibles
+                this.collectiblesManager.checkCollisions(car);
+                
+                // Check for collisions with trap spikes
+                this.trapsManager.checkCollisions(car);
+            }
         }
         
         // Update other players

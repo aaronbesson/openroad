@@ -199,6 +199,16 @@
       "acceleration": 2,
       "shield": 10,
       "description": "Durable garbage truck with maximum protection but very slow."
+    },
+    {
+      "id": "airplane",
+      "name": "Airplane",
+      "file": "airplane.glb",
+      "speed": 10,
+      "handling": 10,
+      "acceleration": 10,
+      "shield": 10,
+      "description": "Fast airplane with excellent handling and protection."
     }
   ]
 } 

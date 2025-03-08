@@ -876,6 +876,20 @@ class GameEngine {
             // Check if vehicle is the airplane
             const isAirplane = vehicleId === 'airplane';
             
+            // Store previous position and rotation for airplane physics
+            let prevPosition = null;
+            let prevRotation = null;
+            
+            if (isAirplane) {
+                // Store current position and rotation for physics calculations
+                prevPosition = car.position.clone();
+                prevRotation = {
+                    x: car.rotation.x,
+                    y: car.rotation.y,
+                    z: car.rotation.z
+                };
+            }
+            
             // Check if vehicle is off-road capable
             const isOffRoadCapable = ['tractor', 'truck', 'suv', 'suv-luxury', 'truck-flat', 'tractor-shovel', 'tractor-police'].includes(vehicleId);
             
@@ -904,6 +918,18 @@ class GameEngine {
             // Only process controls if not disabled from a collision
             if (!this.controlsDisabled) {
                 if (isAirplane) {
+                    // Track user input for determining automatic rotation
+                    const inputs = {
+                        turningLeft: false,
+                        turningRight: false,
+                        ascending: false,
+                        descending: false,
+                        pitchingUp: false,
+                        pitchingDown: false,
+                        rollingLeft: false,
+                        rollingRight: false
+                    };
+                    
                     // Airplane will always move forward automatically
                     const autoMoveSpeed = currentCarSpeed * acceleration * delta * 0.5;
                     car.translateZ(autoMoveSpeed);
@@ -921,55 +947,67 @@ class GameEngine {
                         hasMoved = true;
                     }
                     
-                    // Left/right turn
+                    // Left/right turn - track input for automatic banking
                     if (this.keys.ArrowLeft || this.keys.a) {
                         car.rotation.y += turnSpeed * delta;
+                        inputs.turningLeft = true;
                         hasMoved = true;
                     }
                     if (this.keys.ArrowRight || this.keys.d) {
                         car.rotation.y -= turnSpeed * delta;
+                        inputs.turningRight = true;
                         hasMoved = true;
                     }
                     
-                    // Vertical movement for flying (Q to go up, E to go down)
+                    // Vertical movement for flying - track input for automatic pitching
                     if (this.keys.q) {
                         car.position.y += currentCarSpeed * acceleration * delta * 0.5;
+                        inputs.ascending = true;
                         hasMoved = true;
                     }
                     if (this.keys.e) {
                         car.position.y -= currentCarSpeed * acceleration * delta * 0.5;
                         // Prevent going below ground level
                         car.position.y = Math.max(car.position.y, 1.0);
+                        inputs.descending = true;
                         hasMoved = true;
                     }
                     
-                    // Pitch control (looking up/down) with R and F keys
+                    // Manual pitch control - reduces automatic effect
                     if (this.keys.r) {
                         car.rotation.x -= turnSpeed * delta * 0.5; // Pitch up
                         // Limit maximum pitch
-                        car.rotation.x = Math.max(car.rotation.x, -Math.PI / 4);
+                        car.rotation.x = Math.max(car.rotation.x, -Math.PI / 3);
+                        inputs.pitchingUp = true;
                         hasMoved = true;
                     }
                     if (this.keys.f) {
                         car.rotation.x += turnSpeed * delta * 0.5; // Pitch down
                         // Limit maximum pitch
-                        car.rotation.x = Math.min(car.rotation.x, Math.PI / 4);
+                        car.rotation.x = Math.min(car.rotation.x, Math.PI / 3);
+                        inputs.pitchingDown = true;
                         hasMoved = true;
                     }
                     
-                    // Roll control (banking left/right) with Z and C keys
+                    // Manual roll control - reduces automatic effect
                     if (this.keys.z) {
                         car.rotation.z += turnSpeed * delta * 0.5; // Roll left
                         // Limit maximum roll
-                        car.rotation.z = Math.min(car.rotation.z, Math.PI / 4);
+                        car.rotation.z = Math.min(car.rotation.z, Math.PI / 3);
+                        inputs.rollingLeft = true;
                         hasMoved = true;
                     }
                     if (this.keys.c) {
                         car.rotation.z -= turnSpeed * delta * 0.5; // Roll right
                         // Limit maximum roll
-                        car.rotation.z = Math.max(car.rotation.z, -Math.PI / 4);
+                        car.rotation.z = Math.max(car.rotation.z, -Math.PI / 3);
+                        inputs.rollingRight = true;
                         hasMoved = true;
                     }
+                    
+                    // Apply automatic flight physics
+                    this.applyAirplaneBehavior(car, delta, inputs, prevPosition, prevRotation);
+                    
                 } else {
                     // Regular car controls
                     // Forward movement with either W or ArrowUp
@@ -1719,6 +1757,76 @@ class GameEngine {
             fuse.particles.geometry.attributes.position.needsUpdate = true;
             fuse.particles.geometry.attributes.size.needsUpdate = true;
         });
+    }
+    
+    // Apply realistic airplane flight behavior
+    applyAirplaneBehavior(plane, delta, inputs, prevPosition, prevRotation) {
+        // Bank (roll) into turns automatically
+        const bankAmount = 0.35; // Maximum bank angle in radians (approx 20 degrees)
+        const bankSpeed = 2.0; // How quickly to bank into turns
+        
+        // Calculate direction and vertical changes
+        const positionDelta = plane.position.clone().sub(prevPosition);
+        const verticalChange = positionDelta.y;
+        
+        // Calculate turn direction from rotation change
+        const yawChange = prevRotation ? (plane.rotation.y - prevRotation.y) : 0;
+        
+        // Calculate target roll based on turn direction
+        let targetRoll = 0;
+        
+        // Apply roll based on turning
+        if (yawChange !== 0) {
+            // Invert the sign because banking left (positive Z) for right turn (negative yaw change)
+            targetRoll = -yawChange * 10 * bankAmount;
+            // Limit maximum bank angle
+            targetRoll = Math.max(Math.min(targetRoll, bankAmount), -bankAmount);
+        }
+        
+        // Only apply automatic banking if player is not manually rolling
+        if (!inputs.rollingLeft && !inputs.rollingRight) {
+            // Smooth transition to target roll
+            plane.rotation.z = THREE.MathUtils.lerp(
+                plane.rotation.z,
+                targetRoll,
+                delta * bankSpeed
+            );
+        }
+        
+        // Apply automatic pitch based on vertical movement
+        const pitchAmount = 0.3; // Maximum auto-pitch in radians (approx 17 degrees)
+        const pitchSpeed = 1.5; // How quickly to pitch
+        
+        // Calculate target pitch based on vertical velocity
+        let targetPitch = 0;
+        
+        if (verticalChange !== 0) {
+            // Negative pitch (looking up) when ascending, positive (looking down) when descending
+            targetPitch = -Math.sign(verticalChange) * Math.min(Math.abs(verticalChange * 5), pitchAmount);
+        }
+        
+        // Only apply automatic pitching if player is not manually pitching
+        if (!inputs.pitchingUp && !inputs.pitchingDown) {
+            // Smooth transition to target pitch
+            plane.rotation.x = THREE.MathUtils.lerp(
+                plane.rotation.x,
+                targetPitch,
+                delta * pitchSpeed
+            );
+        }
+        
+        // Apply slight wobble for more natural flight
+        const time = performance.now() * 0.001; // Convert to seconds
+        const wobbleAmount = 0.004; // Very subtle wobble
+        
+        // Add subtle random movement to make flight look more natural
+        if (!inputs.pitchingUp && !inputs.pitchingDown) {
+            plane.rotation.x += Math.sin(time * 2.1) * wobbleAmount;
+        }
+        
+        if (!inputs.rollingLeft && !inputs.rollingRight) {
+            plane.rotation.z += Math.sin(time * 1.7) * wobbleAmount;
+        }
     }
 }
 

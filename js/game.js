@@ -109,6 +109,10 @@ class GameEngine {
         
         // Handle window resize
         window.addEventListener('resize', this.onWindowResize.bind(this));
+        
+        // Initialize off-road indicator
+        this.offRoadIndicatorVisible = false;
+        this.createOffRoadIndicator();
     }
     
     // Setup event listeners
@@ -784,6 +788,30 @@ class GameEngine {
             const carSpeed = carProperties.speed;
             const turnSpeed = carProperties.handling;
             const acceleration = carProperties.acceleration;
+            const vehicleId = carProperties.vehicleId; // Get the vehicle ID
+            
+            // Check if vehicle is off-road capable
+            const isOffRoadCapable = ['tractor', 'truck', 'suv', 'suv-luxury', 'truck-flat', 'tractor-shovel', 'tractor-police'].includes(vehicleId);
+            
+            // Check if car is off track for speed limiting purposes
+            const isOnTrack = this.isCarOnTrack(car);
+            
+            // Limit speed for off-road vehicles when off track
+            let currentCarSpeed = carSpeed;
+            if (isOffRoadCapable && !isOnTrack) {
+                // Limit speed to 6 when off-road
+                currentCarSpeed = Math.min(carSpeed, 6);
+                
+                // Show off-road indicator if not already visible
+                if (!this.offRoadIndicatorVisible) {
+                    this.showOffRoadIndicator();
+                    this.offRoadIndicatorVisible = true;
+                }
+            } else if (this.offRoadIndicatorVisible) {
+                // Hide indicator when back on track or not an off-road vehicle
+                this.hideOffRoadIndicator();
+                this.offRoadIndicatorVisible = false;
+            }
             
             let hasMoved = false;
             
@@ -791,12 +819,12 @@ class GameEngine {
             if (!this.controlsDisabled) {
                 // Forward movement with either W or ArrowUp
                 if (this.keys.ArrowUp || this.keys.w) {
-                    car.translateZ(carSpeed * acceleration * delta); // Move forward with acceleration
+                    car.translateZ(currentCarSpeed * acceleration * delta); // Use adjusted speed
                     hasMoved = true;
                 }
                 // Backward movement with either S or ArrowDown
                 if (this.keys.ArrowDown || this.keys.s) {
-                    car.translateZ(-carSpeed * 0.7 * delta); // Move backward (slower than forward)
+                    car.translateZ(-currentCarSpeed * 0.7 * delta); // Use adjusted speed
                     hasMoved = true;
                 }
                 // Left turn with either A or ArrowLeft
@@ -823,8 +851,8 @@ class GameEngine {
                     car.position.z < -40 && car.position.z > -80 && 
                     car.position.x > -70 && car.position.x < 70;
                 
-                // Skip off-track checks entirely if near start line
-                if (!isOnTrack && !isNearStartLine) {
+                // Skip off-track checks entirely if near start line or if vehicle is off-road capable
+                if (!isOnTrack && !isNearStartLine && !isOffRoadCapable) {
                     // Car is off track (and not near start) - start or continue the timer
                     if (this.offTrackStartTime === null) {
                         // First time off track - start the timer
@@ -1174,6 +1202,44 @@ class GameEngine {
         
         // Regular track area
         return minDistance <= maxDistanceFromTrack;
+    }
+    
+    // Create the off-road indicator
+    createOffRoadIndicator() {
+        // Create the off-road message element if it doesn't exist
+        if (!document.getElementById('off-road-indicator')) {
+            const indicator = document.createElement('div');
+            indicator.id = 'off-road-indicator';
+            indicator.style.position = 'absolute';
+            indicator.style.bottom = '100px';
+            indicator.style.left = '50%';
+            indicator.style.transform = 'translateX(-50%)';
+            indicator.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            indicator.style.color = 'white';
+            indicator.style.padding = '10px 20px';
+            indicator.style.borderRadius = '5px';
+            indicator.style.fontFamily = 'Arial, sans-serif';
+            indicator.style.display = 'none';
+            indicator.textContent = 'OFF-ROAD: Speed Limited to 6';
+            document.body.appendChild(indicator);
+        }
+    }
+    
+    // Show the off-road indicator
+    showOffRoadIndicator() {
+        const indicator = document.getElementById('off-road-indicator');
+        if (indicator) {
+            indicator.style.display = 'block';
+            console.log("Vehicle is off-road - speed limited to 6");
+        }
+    }
+    
+    // Hide the off-road indicator
+    hideOffRoadIndicator() {
+        const indicator = document.getElementById('off-road-indicator');
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
     }
 }
 

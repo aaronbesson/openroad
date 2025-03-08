@@ -89,6 +89,33 @@ io.on('connection', (socket) => {
         }
     });
     
+    // Handle car collisions
+    socket.on('carCollision', (collisionData) => {
+        if (players[socket.id]) {
+            console.log('Collision detected:', socket.id, 'collided with', collisionData.collidedWithId);
+            
+            // Update the player's position after collision
+            if (collisionData.position) {
+                players[socket.id].position = collisionData.position;
+            }
+            
+            // Notify the other player involved in the collision
+            if (players[collisionData.collidedWithId]) {
+                io.to(collisionData.collidedWithId).emit('playerCollidedWithYou', {
+                    id: socket.id,
+                    position: players[socket.id].position
+                });
+            }
+            
+            // Broadcast collision to other players
+            socket.broadcast.emit('playersCollided', {
+                player1: socket.id,
+                player2: collisionData.collidedWithId,
+                position: players[socket.id].position
+            });
+        }
+    });
+    
     // Player disconnects
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);

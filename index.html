@@ -104,6 +104,24 @@
             align-items: center;
             z-index: 1000;
         }
+        /* Collision effect */
+        #collision-effect {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,0,0,0.2);
+            pointer-events: none;
+            z-index: 900;
+            display: none;
+            animation: flash 0.5s;
+        }
+        @keyframes flash {
+            0% { opacity: 0; }
+            20% { opacity: 1; }
+            100% { opacity: 0; }
+        }
         .connection-box {
             background: #222;
             padding: 30px;
@@ -174,6 +192,9 @@
         </div>
     </div>
 
+    <!-- Collision effect overlay -->
+    <div id="collision-effect"></div>
+
     <div class="controls">
         <h3>Select Vehicle</h3>
         <select id="vehicle-select" class="vehicle-select">
@@ -223,6 +244,8 @@
         let nameLabels = {}; // Store name labels for players
         let otherPlayersHeadlights = {}; // Store headlights for other players
         let headlightsOn = true; // Headlight state
+        let controlsDisabled = false; // For collision response
+        let controlsDisabledTimeout = null; // For tracking control recovery
 
         // Audio context and sounds
         let audioContext;
@@ -358,6 +381,46 @@
                 if (otherPlayers[data.id]) {
                     // Play horn sound for another player
                     playHorn();
+                }
+            });
+            
+            // When another player collides with you
+            socket.on('playerCollidedWithYou', function(data) {
+                if (currentCar && otherPlayers[data.id]) {
+                    // Get the other player's position
+                    const otherPos = new THREE.Vector3(
+                        data.position.x,
+                        data.position.y,
+                        data.position.z
+                    );
+                    
+                    // Calculate collision response direction (pushes away from other car)
+                    const pushDirection = new THREE.Vector3().subVectors(currentCar.position, otherPos).normalize();
+                    
+                    // Apply "bounce" force to our car
+                    currentCar.position.add(pushDirection.multiplyScalar(collisionBounceStrength));
+                    
+                    // Temporarily disable controls
+                    disableControls();
+                    
+                    // Play collision sound
+                    playCollisionSound();
+                    
+                    // Show visual collision effect - only for the player who was hit
+                    showCollisionEffect();
+                    
+                    // Update server with our new position
+                    emitPlayerMovement();
+                }
+            });
+            
+            // When two other players collide (for visual and sound effects)
+            socket.on('playersCollided', function(data) {
+                // We're not involved in this collision, just witnessing it
+                // Could add visual effects here if desired
+                if (otherPlayers[data.player1] && otherPlayers[data.player2]) {
+                    // Play a distant collision sound at lower volume
+                    playDistantCollisionSound();
                 }
             });
             
@@ -1055,6 +1118,11 @@
         let turnSpeed = Math.PI; // Radians per second
         const clock = new THREE.Clock();
         
+        // Collision parameters
+        const carCollisionRadius = 2.0; // Collision radius for cars
+        const collisionRecoveryTime = 1000; // Time in ms before control is restored after collision
+        const collisionBounceStrength = 0.5; // How strongly cars bounce off each other
+        
         // Synchronization time tracking
         let lastUpdateTime = 0;
         const updateInterval = 100; // Send updates every 100ms
@@ -1086,25 +1154,28 @@
                 
                 let hasMoved = false;
                 
-                // Forward movement with either W or ArrowUp
-                if (keys.ArrowUp || keys.w) {
-                    currentCar.translateZ(carSpeed * acceleration * delta); // Move forward with acceleration
-                    hasMoved = true;
-                }
-                // Backward movement with either S or ArrowDown
-                if (keys.ArrowDown || keys.s) {
-                    currentCar.translateZ(-carSpeed * 0.7 * delta); // Move backward (usually slower than forward)
-                    hasMoved = true;
-                }
-                // Left turn with either A or ArrowLeft
-                if (keys.ArrowLeft || keys.a) {
-                    currentCar.rotation.y += turnSpeed * delta; // Turn left
-                    hasMoved = true;
-                }
-                // Right turn with either D or ArrowRight
-                if (keys.ArrowRight || keys.d) {
-                    currentCar.rotation.y -= turnSpeed * delta; // Turn right
-                    hasMoved = true;
+                // Only process controls if not disabled from a collision
+                if (!controlsDisabled) {
+                    // Forward movement with either W or ArrowUp
+                    if (keys.ArrowUp || keys.w) {
+                        currentCar.translateZ(carSpeed * acceleration * delta); // Move forward with acceleration
+                        hasMoved = true;
+                    }
+                    // Backward movement with either S or ArrowDown
+                    if (keys.ArrowDown || keys.s) {
+                        currentCar.translateZ(-carSpeed * 0.7 * delta); // Move backward (usually slower than forward)
+                        hasMoved = true;
+                    }
+                    // Left turn with either A or ArrowLeft
+                    if (keys.ArrowLeft || keys.a) {
+                        currentCar.rotation.y += turnSpeed * delta; // Turn left
+                        hasMoved = true;
+                    }
+                    // Right turn with either D or ArrowRight
+                    if (keys.ArrowRight || keys.d) {
+                        currentCar.rotation.y -= turnSpeed * delta; // Turn right
+                        hasMoved = true;
+                    }
                 }
 
                 // Send movement updates at a controlled rate
@@ -1121,6 +1192,9 @@
                 const cameraPosition = new THREE.Vector3().copy(currentCar.position).add(cameraOffset);
                 camera.position.lerp(cameraPosition, 0.1); // Smooth camera movement
                 camera.lookAt(currentCar.position.x, 0, currentCar.position.z); // Look at car
+                
+                // Check for collisions with other players
+                checkCollisions();
             }
             
             // Update other players (interpolate movement)
@@ -1151,6 +1225,119 @@
                     // Update name label position
                     updateNameLabel(id);
                 }
+            }
+        }
+
+        // Check for collisions between player's car and other cars
+        function checkCollisions() {
+            if (!currentCar) return;
+            
+            // Get player car's position
+            const playerPos = currentCar.position.clone();
+            
+            // Check collision with each other player
+            for (const id in otherPlayers) {
+                const otherPlayer = otherPlayers[id];
+                const otherPos = otherPlayer.position.clone();
+                
+                // Calculate distance between cars
+                const distance = playerPos.distanceTo(otherPos);
+                
+                // If distance is less than the combined collision radius, we have a collision
+                if (distance < carCollisionRadius * 2) {
+                    // Handle the collision
+                    handleCollision(otherPlayer, otherPos);
+                    
+                    // Notify server about collision
+                    if (socket && socket.connected) {
+                        socket.emit('carCollision', { 
+                            collidedWithId: id,
+                            position: {
+                                x: currentCar.position.x,
+                                y: currentCar.position.y,
+                                z: currentCar.position.z
+                            }
+                        });
+                    }
+                    
+                    // Only handle one collision at a time
+                    break;
+                }
+            }
+        }
+
+        // Handle collision between player car and another car
+        function handleCollision(otherCar, otherPos) {
+            if (controlsDisabled) return; // Already handling a collision
+            
+            // Calculate collision response direction (pushes away from other car)
+            const pushDirection = new THREE.Vector3().subVectors(currentCar.position, otherPos).normalize();
+            
+            // Apply "bounce" force to the player's car
+            currentCar.position.add(pushDirection.multiplyScalar(collisionBounceStrength));
+            
+            // Temporarily disable car controls
+            disableControls();
+            
+            // Play collision sound
+            playCollisionSound();
+            
+            // Don't show visual effect for initiator (only for victim)
+            // The victim will see the effect when they receive playerCollidedWithYou event
+        }
+
+        // Disable controls temporarily after collision
+        function disableControls() {
+            controlsDisabled = true;
+            
+            // Clear any existing timeout
+            if (controlsDisabledTimeout) {
+                clearTimeout(controlsDisabledTimeout);
+            }
+            
+            // Re-enable controls after recovery time
+            controlsDisabledTimeout = setTimeout(() => {
+                controlsDisabled = false;
+            }, collisionRecoveryTime);
+        }
+
+        // Show visual collision effect
+        function showCollisionEffect() {
+            const collisionEffect = document.getElementById('collision-effect');
+            
+            // Reset animation
+            collisionEffect.style.animation = 'none';
+            collisionEffect.offsetHeight; // Trigger reflow
+            
+            // Show and animate
+            collisionEffect.style.display = 'block';
+            collisionEffect.style.animation = 'flash 0.5s';
+            
+            // Hide after animation completes
+            setTimeout(() => {
+                collisionEffect.style.display = 'none';
+            }, 500);
+        }
+
+        // Play collision sound
+        function playCollisionSound() {
+            if (audioContext) {
+                // Create an oscillator for a quick crash sound
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(100, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(30, audioContext.currentTime + 0.2);
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.2);
             }
         }
 
@@ -1186,6 +1373,28 @@
             // Notify server about headlight state change
             if (socket && socket.connected) {
                 socket.emit('headlightsToggle', { headlightsOn });
+            }
+        }
+
+        // Play collision sound for distant collisions (between other players)
+        function playDistantCollisionSound() {
+            if (audioContext) {
+                // Create an oscillator for a quick crash sound (quieter than direct collisions)
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(80, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(20, audioContext.currentTime + 0.15);
+                
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime); // Lower volume for distant collisions
+                gainNode.gain.exponentialRampToValueAtTime(0.005, audioContext.currentTime + 0.15);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.15);
             }
         }
 

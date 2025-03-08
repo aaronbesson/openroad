@@ -300,8 +300,7 @@ class GameEngine {
             const nextPoint = points[nextIndex];
             
             // Calculate the direction vector
-            const direction = new THREE.Vector3();
-            direction.subVectors(nextPoint, currentPoint).normalize();
+            const direction = new THREE.Vector3().subVectors(nextPoint, currentPoint).normalize();
             
             // Calculate the up vector (always straight up)
             const up = new THREE.Vector3(0, 1, 0);
@@ -966,6 +965,9 @@ class GameEngine {
         
         // Update collectibles (rotation, floating animation)
         this.collectiblesManager.update(delta);
+        
+        // Animate bomb fuses
+        this.animateBombFuses(delta);
     }
     
     // Animation loop
@@ -1366,6 +1368,9 @@ class GameEngine {
             isActive: true // Flag to track if bomb is still active
         };
         
+        // Add sparkling fuse effect
+        this.createBombFuseEffect(bomb);
+        
         // Log for debugging
         console.log('Car angle:', carAngle);
         console.log('Car position:', car.position);
@@ -1501,6 +1506,101 @@ class GameEngine {
         
         // Update server with new position
         this.multiplayerManager.emitPlayerMovement(car);
+    }
+    
+    // Create sparkling fuse effect for bombs
+    createBombFuseEffect(bomb) {
+        // Create a point light for the bomb (glowing effect)
+        const light = new THREE.PointLight(0xff6600, 2, 6);
+        light.position.set(0, 2, 0); // Position light at the top of the bomb
+        bomb.add(light);
+        
+        // Create a particle system for sparks
+        const sparkGeometry = new THREE.BufferGeometry();
+        const sparkCount = 20;
+        const positionArray = new Float32Array(sparkCount * 3);
+        const sizeArray = new Float32Array(sparkCount);
+        
+        // Initialize particles at random positions near the fuse
+        for (let i = 0; i < sparkCount; i++) {
+            // Position around the top of the bomb
+            const i3 = i * 3;
+            positionArray[i3] = (Math.random() - 0.5) * 0.5; // x
+            positionArray[i3 + 1] = 2 + Math.random() * 0.5; // y - top of the bomb
+            positionArray[i3 + 2] = (Math.random() - 0.5) * 0.5; // z
+            
+            // Random sizes for particles
+            sizeArray[i] = Math.random() * 0.3 + 0.1;
+        }
+        
+        sparkGeometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
+        sparkGeometry.setAttribute('size', new THREE.BufferAttribute(sizeArray, 1));
+        
+        // Create a material for sparks
+        const sparkMaterial = new THREE.PointsMaterial({
+            color: 0xffaa00,
+            size: 0.5,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            sizeAttenuation: true
+        });
+        
+        // Create the particle system
+        const sparkParticles = new THREE.Points(sparkGeometry, sparkMaterial);
+        bomb.add(sparkParticles);
+        
+        // Store reference to particles and light for animation
+        bomb.userData.fuse = {
+            light: light,
+            particles: sparkParticles,
+            positionArray: positionArray,
+            sizeArray: sizeArray,
+            time: 0
+        };
+        
+        return bomb;
+    }
+    
+    // Animate bomb fuse effects
+    animateBombFuses(delta) {
+        // Loop through all bombs
+        this.bombs.forEach(bomb => {
+            if (!bomb.userData.fuse) return;
+            
+            const fuse = bomb.userData.fuse;
+            fuse.time += delta;
+            
+            // Animate light intensity (flickering effect)
+            fuse.light.intensity = 1.5 + Math.sin(fuse.time * 15) * 0.5;
+            
+            // Animate particles
+            const positions = fuse.particles.geometry.attributes.position.array;
+            const sizes = fuse.particles.geometry.attributes.size.array;
+            
+            for (let i = 0; i < positions.length / 3; i++) {
+                const i3 = i * 3;
+                
+                // Make particles "dance" around
+                positions[i3] += (Math.random() - 0.5) * 0.05;
+                positions[i3 + 1] += (Math.random() - 0.3) * 0.05; // Bias upward
+                positions[i3 + 2] += (Math.random() - 0.5) * 0.05;
+                
+                // Keep particles near the top of the bomb
+                if (positions[i3 + 1] < 1.8) positions[i3 + 1] = 2.2;
+                if (positions[i3 + 1] > 2.5) positions[i3 + 1] = 2.2;
+                
+                // Limit horizontal spread
+                if (Math.abs(positions[i3]) > 0.5) positions[i3] *= 0.9;
+                if (Math.abs(positions[i3 + 2]) > 0.5) positions[i3 + 2] *= 0.9;
+                
+                // Randomize size for sparkle effect
+                sizes[i] = Math.random() * 0.3 + 0.1;
+            }
+            
+            // Update the geometry
+            fuse.particles.geometry.attributes.position.needsUpdate = true;
+            fuse.particles.geometry.attributes.size.needsUpdate = true;
+        });
     }
 }
 

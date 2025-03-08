@@ -1,4 +1,3 @@
-
 class TrapsManager {
     constructor(scene, loader) {
         this.scene = scene;
@@ -73,17 +72,34 @@ class TrapsManager {
             const trapPosition = trap.position;
             const distance = trapPosition.distanceTo(carPosition);
 
-            if (distance < trap.collisionRadius) {
+            if (distance < trap.collisionRadius + 1.2) { // Adding car collision radius
                 console.log('Trap collision detected!', trap);
-                this.handleCollision(trap);
+                this.handleCollision(trap, car);
             }
         });
     }
 
     // Handle trap collision
-    handleCollision(trap) {
-        // Logic to handle collision, e.g., reduce speed, play sound, etc.
-        console.log('Handling trap collision:', trap);
+    handleCollision(trap, car) {
+        // Play collision sound if available
+        if (window.gameEngine.playCollisionSound) {
+            window.gameEngine.playCollisionSound();
+        }
+        
+        // Show collision effect if available
+        if (window.gameEngine.showCollisionEffect) {
+            window.gameEngine.showCollisionEffect();
+        }
+        
+        // Reset car to start position
+        if (window.gameEngine.resetCarToStart) {
+            window.gameEngine.resetCarToStart(car);
+            
+            // Ensure position update is sent to server
+            if (window.gameEngine.multiplayerManager) {
+                window.gameEngine.multiplayerManager.emitPlayerMovement(car);
+            }
+        }
     }
 }
 

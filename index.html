@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -10,7 +11,8 @@
     <link rel="stylesheet" href="css/styles.css">
     <style>
         /* Additional styles to prevent scrolling issues */
-        html, body {
+        html,
+        body {
             overflow: hidden;
             position: fixed;
             width: 100%;
@@ -20,34 +22,42 @@
         }
     </style>
 </head>
+
 <body>
     <!-- Connection Screen -->
     <div id="connection-screen" style="display: flex;">
         <div class="connection-box">
-            <h2>Join Multiplayer Game</h2>
+            <h1 style="color: white; text-align: center;">🏁Join The Game🏁</h1>
             <p style="color: white; margin-bottom: 15px;">Enter your name and click "Join Game" to start playing!</p>
-            <input type="text" id="player-name" placeholder="Enter your name" value="Player">
-            <button id="join-button">Join Game</button>
-            
-            <!-- Controls info moved to connection screen -->
-            <div class="controls-info">
-                <h3>Controls</h3>
-                <p>Use the following keys to control your vehicle:</p>
-                <p><span class="controls-key">Up Arrow</span> or <span class="controls-key">W</span> - Accelerate</p>
-                <p><span class="controls-key">Down Arrow</span> or <span class="controls-key">S</span> - Brake</p>
-                <p><span class="controls-key">Left Arrow</span> or <span class="controls-key">A</span> - Turn Left</p>
-                <p><span class="controls-key">Right Arrow</span> or <span class="controls-key">D</span> - Turn Right</p>
-                <p><span class="controls-key">Space</span> - Toggle Headlights</p>
-                <p><span class="controls-key">H</span> - Sound Car Horn</p>
+            <div class="connection-box-input">
+                <input type="text" id="player-name" placeholder="Enter your name" value="Your Name">
+                <button id="join-button">🚗 Join Game</button>
             </div>
-            
-            <div class="controls-info">
-                <h3>Game Features</h3>
-                <p>• Collect coins around the track to earn points</p>
-                <p>• Different coins have different values</p>
-                <p>• Heart items increase your shield protection</p>
-                <p>• Race against other players</p>
-                <p>• Try different vehicles with unique capabilities</p>
+
+            <!-- Controls info moved to connection screen -->
+            <div class="controls-container">
+                <div class="controls-info">
+                    <h3>Controls</h3>
+                    <p>Use the following keys to control your vehicle:</p>
+                    <p><span class="controls-key">Up Arrow</span> or <span class="controls-key">W</span> - Accelerate
+                    </p>
+                    <p><span class="controls-key">Down Arrow</span> or <span class="controls-key">S</span> - Brake</p>
+                    <p><span class="controls-key">Left Arrow</span> or <span class="controls-key">A</span> - Turn Left
+                    </p>
+                    <p><span class="controls-key">Right Arrow</span> or <span class="controls-key">D</span> - Turn Right
+                    </p>
+                    <p><span class="controls-key">Space</span> - Toggle Headlights</p>
+                    <p><span class="controls-key">H</span> - Sound Car Horn</p>
+                </div>
+
+                <div class="controls-info">
+                    <h3>Game Features</h3>
+                    <p>• Collect coins around the track to earn points</p>
+                    <p>• Different coins have different values</p>
+                    <p>• Heart items increase your shield protection</p>
+                    <p>• Race against other players</p>
+                    <p>• Try different vehicles with unique capabilities</p>
+                </div>
             </div>
         </div>
     </div>
@@ -66,36 +76,45 @@
         <div class="stats">
             <div>
                 <div>Speed:</div>
-                <div class="stat-bar"><div id="speed-bar" class="stat-fill" style="width: 0%"></div></div>
+                <div class="stat-bar">
+                    <div id="speed-bar" class="stat-fill" style="width: 0%"></div>
+                </div>
             </div>
             <div>
                 <div>Handling:</div>
-                <div class="stat-bar"><div id="handling-bar" class="stat-fill" style="width: 0%"></div></div>
+                <div class="stat-bar">
+                    <div id="handling-bar" class="stat-fill" style="width: 0%"></div>
+                </div>
             </div>
             <div>
                 <div>Acceleration:</div>
-                <div class="stat-bar"><div id="acceleration-bar" class="stat-fill" style="width: 0%"></div></div>
+                <div class="stat-bar">
+                    <div id="acceleration-bar" class="stat-fill" style="width: 0%"></div>
+                </div>
             </div>
             <div>
                 <div>Shield:</div>
-                <div class="stat-bar"><div id="shield-bar" class="stat-fill" style="width: 0%"></div></div>
+                <div class="stat-bar">
+                    <div id="shield-bar" class="stat-fill" style="width: 0%"></div>
+                </div>
             </div>
         </div>
         <div id="description" class="description"></div>
 
         <!-- Multiplayer info section -->
         <div class="multiplayer-info">
-            <h3>Connected Players (<span id="player-count">0</span>)</h3>
+            <h5>🚗 Players (<span id="player-count">0</span>)</h5>
             <div id="player-list" class="player-list"></div>
         </div>
     </div>
-    
+
     <!-- Load required libraries -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
     <script src="/socket.io/socket.io.js"></script>
-    
+
     <!-- Load our game modules -->
     <script type="module" src="js/game.js"></script>
 </body>
+
 </html>

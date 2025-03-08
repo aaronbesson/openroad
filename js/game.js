@@ -393,11 +393,23 @@ class GameEngine {
         // Draw the text
         context.fillStyle = '#000000';  // Black background
         context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Save the current state
+        context.save();
+        
+        // Set up a transform that mirrors horizontally
+        context.scale(-1, 1);
+        context.translate(-canvas.width, 0);
+        
+        // Draw the text (normally)
         context.font = 'bold 72px Arial';
         context.textAlign = 'center';
         context.textBaseline = 'middle';
         context.fillStyle = '#FFFFFF';  // White text
         context.fillText('START', canvas.width / 2, canvas.height / 2);
+        
+        // Restore the original state
+        context.restore();
         
         // Create a texture from the canvas
         const texture = new THREE.CanvasTexture(canvas);

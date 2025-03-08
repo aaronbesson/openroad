@@ -252,12 +252,37 @@ class MultiplayerManager {
             this.nameLabels = {};
             this.otherPlayersHeadlights = {};
             
+            // Show the connection screen again so player can reconnect
+            const connectionScreen = document.getElementById('connection-screen');
+            if (connectionScreen) {
+                connectionScreen.style.display = 'flex';
+            }
+            
+            // Update player list
             this.updatePlayerList();
             
-            // Show connection screen again so user can reconnect
-            if (this.connectionScreen) {
-                this.connectionScreen.style.display = 'flex';
+            // Don't restart the game - just disconnect the player
+            // The game state will remain on the server
+        });
+        
+        // Handle server-managed game state
+        this.socket.on('gameState', (state) => {
+            console.log('Received game state from server:', state);
+            
+            // Apply collectibles state
+            if (state.collectiblesState && window.gameEngine && window.gameEngine.collectiblesManager) {
+                Object.keys(state.collectiblesState).forEach(itemId => {
+                    const item = state.collectiblesState[itemId];
+                    if (item.collected) {
+                        // Mark this collectible as already collected
+                        window.gameEngine.collectiblesManager.markCollected(itemId, item.collectedBy);
+                    }
+                });
             }
+            
+            // Server game has been running for this long
+            const gameRuntime = Date.now() - state.startTime;
+            console.log(`Game has been running for ${Math.floor(gameRuntime / 1000)} seconds`);
         });
     }
     
@@ -289,14 +314,16 @@ class MultiplayerManager {
     
     // Handle when local player collects an item
     onCollectibleCollected(event) {
+        const collectibleData = event.detail;
+        console.log('Collectible collected locally:', collectibleData);
+        
+        // Only send to server if we're connected
         if (this.socket && this.socket.connected) {
-            const collectibleData = event.detail.collectible;
-            
-            // Send only necessary data to avoid bandwidth issues
-            this.socket.emit('collectItem', {
-                itemId: collectibleData.id,
-                itemType: collectibleData.type,
-                score: event.detail.score
+            // Notify server about this collectible
+            this.socket.emit('collectibleCollected', {
+                itemId: collectibleData.itemId,
+                type: collectibleData.type,
+                position: collectibleData.position
             });
         }
     }
@@ -332,14 +359,19 @@ class MultiplayerManager {
     // Add another player to the game
     addOtherPlayer(playerInfo) {
         console.log('Adding other player:', playerInfo);
+        
         // Store player data
         this.otherPlayersData[playerInfo.id] = playerInfo;
         
-        // Load their car
-        this.loadOtherPlayerCar(playerInfo.id, playerInfo);
+        // Load their car - only do this if we have a scene to add it to
+        if (this.scene) {
+            this.loadOtherPlayerCar(playerInfo.id, playerInfo);
+        }
         
-        // Create name label
-        this.createNameLabel(playerInfo.id, playerInfo.playerName);
+        // Create name label, but don't let it affect viewport
+        if (document.body) {
+            this.createNameLabel(playerInfo.id, playerInfo.playerName);
+        }
     }
     
     // Load another player's car
@@ -528,6 +560,9 @@ class MultiplayerManager {
         const label = document.createElement('div');
         label.className = 'player-name';
         label.textContent = name;
+        label.style.position = 'fixed'; // Use fixed positioning
+        label.style.zIndex = '1000'; // Ensure it's above the canvas
+        label.style.pointerEvents = 'none'; // Prevent interaction
         document.body.appendChild(label);
         
         this.nameLabels[playerId] = label;
@@ -536,32 +571,33 @@ class MultiplayerManager {
         this.updateNameLabel(playerId);
     }
     
-    // Update the position of a player's name label
+    // Update name label position to follow car
     updateNameLabel(playerId) {
-        if (!this.nameLabels[playerId] || !this.otherPlayers[playerId]) return;
+        const car = this.otherPlayers[playerId];
+        const label = this.nameLabels[playerId];
         
-        // Get screen position for the player's car
-        const position = new THREE.Vector3();
-        position.setFromMatrixPosition(this.otherPlayers[playerId].matrixWorld);
-        position.y += 1.5; // Position above the car
-        
-        // Convert 3D position to screen coordinates
-        const screenPosition = position.clone();
-        screenPosition.project(this.camera);
-        
-        // Convert to CSS coordinates
-        const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
-        const y = (-(screenPosition.y * 0.5) + 0.5) * window.innerHeight;
-        
-        // Update label position
-        this.nameLabels[playerId].style.left = x + 'px';
-        this.nameLabels[playerId].style.top = y + 'px';
-        
-        // Only show if in front of camera
-        if (screenPosition.z > 1) {
-            this.nameLabels[playerId].style.display = 'none';
-        } else {
-            this.nameLabels[playerId].style.display = 'block';
+        if (car && label) {
+            // Get player position in world space
+            const position = new THREE.Vector3();
+            position.setFromMatrixPosition(car.matrixWorld);
+            
+            // Project position to screen space
+            const screenPosition = position.clone();
+            screenPosition.project(this.camera);
+            
+            // Convert to screen coordinates
+            const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-(screenPosition.y * 0.5) + 0.5) * window.innerHeight - 50; // Position above car
+            
+            // Only show label if it's in front of the camera (not behind)
+            if (screenPosition.z < 1) {
+                label.style.display = 'block';
+                label.style.transform = `translate(-50%, -50%)`;
+                label.style.left = `${x}px`;
+                label.style.top = `${y}px`;
+            } else {
+                label.style.display = 'none'; // Hide if behind camera
+            }
         }
     }
     
@@ -594,38 +630,50 @@ class MultiplayerManager {
     
     // Update other players (called in animation loop)
     update() {
-        // Update other players (interpolate movement)
-        for (const id in this.otherPlayers) {
+        // Skip if not connected
+        if (!this.connected) return;
+        
+        // Update other players' positions through interpolation
+        Object.keys(this.otherPlayers).forEach(id => {
             const player = this.otherPlayers[id];
             
-            if (player.targetPosition) {
-                // Interpolate position for smooth movement
-                player.position.lerp(player.targetPosition, 0.1);
+            if (player.targetPosition && player.targetRotation) {
+                // Interpolate position - smooth movement between network updates
+                const lerpFactor = 0.1; // Adjust for smoothness (0.1 = 10% of the distance per frame)
                 
-                // Interpolate rotation
-                if (player.targetRotation) {
-                    // Find shortest path for rotation
-                    let targetY = player.targetRotation.y;
-                    let currentY = player.rotation.y;
-                    
-                    // Calculate the difference
-                    let diff = targetY - currentY;
-                    
-                    // Normalize to [-PI, PI]
-                    if (diff > Math.PI) diff -= 2 * Math.PI;
-                    if (diff < -Math.PI) diff += 2 * Math.PI;
-                    
-                    // Apply a portion of the rotation
-                    player.rotation.y += diff * 0.1;
-                }
+                // Position interpolation
+                player.position.lerp(player.targetPosition, lerpFactor);
                 
-                // Update name label position
+                // Rotation interpolation (only Y axis)
+                const currentRotation = player.rotation.y;
+                const targetRotation = player.targetRotation.y;
+                
+                // Find the shortest path to rotate
+                let rotDiff = targetRotation - currentRotation;
+                if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+                if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+                
+                player.rotation.y += rotDiff * lerpFactor;
+                
+                // Update name label with interpolated position
                 this.updateNameLabel(id);
+            }
+        });
+        
+        // Limit how often we send our own position updates
+        const now = Date.now();
+        if (now - this.lastUpdateTime > this.updateInterval) {
+            this.lastUpdateTime = now;
+            
+            // Get player car from the game engine
+            const playerCar = window.gameEngine.vehicleManager.playerCar;
+            if (playerCar && this.connected) {
+                this.emitPlayerMovement(playerCar);
             }
         }
     }
     
-    // Send player movement to server
+    // Modified function to handle player car position emission
     emitPlayerMovement(car) {
         if (!this.socket || !this.socket.connected || !car) return;
         

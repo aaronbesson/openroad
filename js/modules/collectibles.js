@@ -123,6 +123,11 @@ class CollectiblesManager {
                 // Adjust height based on track position
                 this.adjustCollectibleHeight(collectible);
                 
+                // Store id in userData for identification
+                collectible.userData = collectible.userData || {};
+                collectible.userData.id = id;
+                collectible.userData.type = collectibleData.id;
+                
                 // Add to scene
                 this.scene.add(collectible);
                 
@@ -155,20 +160,20 @@ class CollectiblesManager {
     adjustCollectibleHeight(collectible) {
         // Updated track data with higher elevation - match game.js
         const trackPath = [
-            [-60, 0.2, -60],     // Start point
-            [60, 0.2, -60],      // Long straight section
-            [80, 0.2, -40],      // Turn 1
-            [90, 0.2, -10],      // Turn 2
-            [80, 0.2, 20],       // Turn 3
-            [60, 0.2, 40],       // Turn 4
-            [20, 0.2, 60],       // Turn 5
-            [-20, 0.2, 70],      // Turn 6
-            [-50, 0.2, 60],      // Turn 7
-            [-80, 0.2, 40],      // Turn 8
-            [-90, 0.2, 10],      // Turn 9
-            [-80, 0.2, -20],     // Turn 10
-            [-70, 0.2, -40],     // Turn 11
-            [-60, 0.2, -60]      // Turn 12 and back to start
+            [-60, 0, -60],     // Start point
+            [60, 0, -60],      // Long straight section
+            [80, 0, -40],      // Turn 1
+            [90, 0, -10],      // Turn 2
+            [80, 0, 20],       // Turn 3
+            [60, 0, 40],       // Turn 4
+            [20, 0, 60],       // Turn 5
+            [-20, 0, 70],      // Turn 6
+            [-50, 0, 60],      // Turn 7
+            [-80, 0, 40],      // Turn 8
+            [-90, 0, 10],      // Turn 9
+            [-80, 0, -20],     // Turn 10
+            [-70, 0, -40],     // Turn 11
+            [-60, 0, -60]      // Turn 12 and back to start
         ];
         
         // Create a curve for interpolation
@@ -250,52 +255,95 @@ class CollectiblesManager {
         carPosition.y = carPosition.y - 0.3;
         
         this.spawnedCollectibles.forEach(collectible => {
-            if (collectible.collected) return;
+            // Skip if already collected
+            if (collectible.collected || (collectible.object && !collectible.object.visible)) return;
 
+            // Get the collectible position (either directly or from object)
+            const collectiblePosition = collectible.object ? collectible.object.position : collectible.position;
+            
             // More lenient collision radius for easier collection
             const collisionDistance = collectible.collisionRadius * 2.0;
-            const distance = collectible.object.position.distanceTo(carPosition);
+            const distance = collectiblePosition.distanceTo(carPosition);
             
             // More lenient height check
-            const heightDiff = Math.abs(collectible.object.position.y - carPosition.y);
+            const heightDiff = Math.abs(collectiblePosition.y - carPosition.y);
             const maxHeightDiff = 2.0; // Increased height tolerance
             
             if (distance < collisionDistance && heightDiff < maxHeightDiff) {
+                console.log('Collectible collision detected!', collectible);
                 this.collectItem(collectible);
             }
         });
     }
     
-    // Handle collectible pickup
+    // Handle collectible collection
     collectItem(collectible) {
+        // Skip if already collected
+        if (collectible.collected) return;
+        
         // Mark as collected
         collectible.collected = true;
         
-        // Hide the collectible
-        collectible.object.visible = false;
+        // Get the collectible object
+        const collectibleObject = collectible.object || collectible;
         
-        // Play sound effect
-        this.playCollectSound(collectible.data);
+        // Find the collectible data
+        const collectibleData = collectible.data || 
+                               this.collectiblesData.find(c => c.type === collectible.type || 
+                                                            c.id === collectible.type ||
+                                                            (collectibleObject.userData && c.type === collectibleObject.userData.type));
         
-        // Apply effects
-        this.applyCollectibleEffects(collectible.data);
-        
-        // Show visual effect
-        this.showCollectionEffect(collectible.data);
-        
-        // Handle respawn
-        setTimeout(() => {
-            this.respawnCollectible(collectible);
-        }, collectible.respawnTime);
-        
-        // Emit collection event
-        const event = new CustomEvent('collectibleCollected', { 
-            detail: { 
-                collectible: collectible,
-                score: this.playerScore
-            } 
-        });
-        document.dispatchEvent(event);
+        if (collectibleData) {
+            // Apply effects (score, shield, etc)
+            this.applyCollectibleEffects(collectibleData);
+            
+            // Play collection sound
+            this.playCollectSound(collectibleData);
+            
+            // Show collection effect
+            this.showCollectionEffect(collectibleData);
+            
+            // Hide the collectible
+            if (collectibleObject.visible !== undefined) {
+                collectibleObject.visible = false;
+            } else if (collectible.object) {
+                collectible.object.visible = false;
+            }
+            
+            // Set collectible ID for server sync
+            const collectibleId = collectible.id || 
+                                 (collectibleObject.userData && collectibleObject.userData.id) || 
+                                 'collectible-' + Math.floor(Math.random() * 10000);
+            
+            // Notify the server of this collection if we have multiplayer
+            if (window.gameEngine?.multiplayerManager?.socket) {
+                window.gameEngine.multiplayerManager.socket.emit('collectibleCollected', {
+                    itemId: collectibleId,
+                    type: collectibleData.type || collectibleData.id,
+                    position: collectibleObject.position || collectible.position
+                });
+            }
+            
+            // Dispatch event for UI updates and other modules
+            const event = new CustomEvent('collectibleCollected', {
+                detail: {
+                    type: collectibleData.type || collectibleData.id,
+                    value: collectibleData.value,
+                    position: collectibleObject.position || collectible.position,
+                    itemId: collectibleId
+                }
+            });
+            document.dispatchEvent(event);
+            
+            // Schedule respawn if it's set to respawn
+            if (collectibleData.respawn) {
+                setTimeout(() => {
+                    this.respawnCollectible(collectible);
+                }, collectibleData.respawnTime || 10000);
+            }
+        } else {
+            console.error('Could not find collectible data for', collectible);
+        }
     }
     
     // Respawn a collected item
@@ -306,10 +354,11 @@ class CollectiblesManager {
         // Make visible again
         if (collectible.object) {
             collectible.object.visible = true;
-            
-            // Reset position (in case it was moved)
-            collectible.object.position.copy(collectible.position);
+        } else if (collectible.visible !== undefined) {
+            collectible.visible = true;
         }
+        
+        console.log(`Respawned collectible`, collectible);
     }
     
     // Apply effects based on collectible type
@@ -412,28 +461,43 @@ class CollectiblesManager {
     
     // Mark a collectible as collected by another player
     markCollected(collectibleId, playerId) {
-        console.log(`Remote collectible collected: ${collectibleId} by player ${playerId}`);
+        // Find the collectible in our spawned items
+        const collectible = this.spawnedCollectibles.find(c => 
+            (c.id === collectibleId) || 
+            (c.object && c.object.userData && c.object.userData.id === collectibleId)
+        );
         
-        // Find the collectible by ID
-        const collectible = this.spawnedCollectibles.find(c => c.id === collectibleId);
-        
-        if (collectible && !collectible.collected) {
-            // Mark as collected without applying local effects
+        if (collectible) {
+            console.log(`Marking collectible ${collectibleId} as collected by ${playerId}`);
+            
+            // Mark as collected
             collectible.collected = true;
+            collectible.collectedBy = playerId;
             
             // Hide the collectible
             if (collectible.object) {
                 collectible.object.visible = false;
+            } else if (collectible.visible !== undefined) {
+                collectible.visible = false;
             }
             
-            // No points for this player since they didn't collect it
-            // But still show a visual effect for feedback
-            this.showCollectionEffect(collectible.data, 0.3); // Reduced opacity
+            // Show a distant collection effect with reduced opacity
+            const collectibleData = collectible.data || 
+                this.collectiblesData.find(c => 
+                    c.id === collectible.type || 
+                    (collectible.object && collectible.object.userData && c.type === collectible.object.userData.type)
+                );
+                
+            if (collectibleData) {
+                this.showCollectionEffect(collectibleData, 0.4); // Reduced opacity for remote collection
             
-            // Handle respawn
-            setTimeout(() => {
-                this.respawnCollectible(collectible);
-            }, collectible.respawnTime);
+                // Schedule respawn if needed
+                if (collectibleData.respawn) {
+                    setTimeout(() => {
+                        this.respawnCollectible(collectible);
+                    }, collectibleData.respawnTime || 10000);
+                }
+            }
         }
     }
 }

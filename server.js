@@ -11,6 +11,13 @@ app.use(express.static(path.join(__dirname, '/')));
 // Store connected players
 const players = {};
 
+// Game state that persists independent of players
+const gameState = {
+    running: true,
+    startTime: Date.now(),
+    collectiblesState: {} // Will store the state of collectibles
+};
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
@@ -27,7 +34,8 @@ io.on('connection', (socket) => {
             position: playerData.position || { x: 0, y: 0, z: 0 },
             rotation: playerData.rotation || { y: 0 },
             playerName: playerData.playerName || `Player-${socket.id.substr(0, 4)}`,
-            headlightsOn: true // Default headlights on
+            headlightsOn: true, // Default headlights on
+            joinTime: Date.now()
         };
         
         // Send this player info about all existing players
@@ -35,6 +43,9 @@ io.on('connection', (socket) => {
         
         // Send all other players info about this new player
         socket.broadcast.emit('newPlayer', players[socket.id]);
+        
+        // Send current game state to the joining player
+        socket.emit('gameState', gameState);
     });
     
     // Handle headlight toggle
@@ -125,7 +136,27 @@ io.on('connection', (socket) => {
             delete players[socket.id];
             // Let everyone know this player left
             io.emit('playerLeft', socket.id);
+            
+            // Note: Game state persists - we don't reset anything when a player leaves
         }
+    });
+    
+    // Handle collectible pick up and sync with all players
+    socket.on('collectibleCollected', (data) => {
+        // Update game state with collected item
+        if (!gameState.collectiblesState[data.itemId]) {
+            gameState.collectiblesState[data.itemId] = {
+                collected: true,
+                collectedBy: socket.id,
+                collectedAt: Date.now()
+            };
+        }
+        
+        // Broadcast to all other players
+        socket.broadcast.emit('playerCollectedItem', {
+            itemId: data.itemId,
+            playerId: socket.id
+        });
     });
 });
 

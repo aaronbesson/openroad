@@ -1,8 +1,22 @@
 body { 
     margin: 0; 
+    padding: 0;
+    overflow: hidden; /* Prevent scrolling */
     font-family: Arial, Helvetica, sans-serif;
+    height: 100vh;
+    width: 100vw;
+    position: fixed; /* Lock the body */
 }
-canvas { display: block; }
+
+canvas { 
+    display: block; 
+    position: fixed; /* Keep canvas fixed in viewport */
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+}
+
 .controls { 
     position: absolute; 
     top: 10px; 

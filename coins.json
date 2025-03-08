@@ -1,0 +1,63 @@
+{
+  "collectibles": [
+    {
+      "id": "coin-bronze",
+      "name": "Bronze Coin",
+      "model": "coin-bronze.glb",
+      "points": 10,
+      "rotationSpeed": 1.5,
+      "scale": 2.0,
+      "respawnTime": 10000
+    },
+    {
+      "id": "coin-silver",
+      "name": "Silver Coin",
+      "model": "coin-silver.glb",
+      "points": 25,
+      "rotationSpeed": 2.0,
+      "scale": 2.0,
+      "respawnTime": 15000
+    },
+    {
+      "id": "coin-gold",
+      "name": "Gold Coin",
+      "model": "coin-gold.glb",
+      "points": 50,
+      "rotationSpeed": 2.5,
+      "scale": 2.0,
+      "respawnTime": 20000
+    },
+    {
+      "id": "jewel",
+      "name": "Jewel",
+      "model": "jewel.glb",
+      "points": 100,
+      "rotationSpeed": 3.0,
+      "scale": 1.5,
+      "respawnTime": 30000
+    },
+    {
+      "id": "heart",
+      "name": "Heart",
+      "model": "heart.glb",
+      "points": 0,
+      "effect": "shield",
+      "effectValue": 25,
+      "rotationSpeed": 1.0,
+      "scale": 1.5,
+      "respawnTime": 45000
+    }
+  ],
+  "coinSpawnPoints": [
+    {"position": [20, 0.5, -20], "type": "coin-bronze"},
+    {"position": [25, 0.5, -10], "type": "coin-bronze"},
+    {"position": [15, 0.5, -5], "type": "coin-silver"},
+    {"position": [10, 0.5, 10], "type": "coin-bronze"},
+    {"position": [0, 0.5, 20], "type": "coin-gold"},
+    {"position": [-15, 0.5, 15], "type": "coin-silver"},
+    {"position": [-25, 0.5, 0], "type": "coin-bronze"},
+    {"position": [-15, 0.5, -15], "type": "coin-bronze"},
+    {"position": [0, 0.5, 0], "type": "jewel"},
+    {"position": [30, 0.5, -5], "type": "heart"}
+  ]
+} 

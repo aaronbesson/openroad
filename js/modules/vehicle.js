@@ -1,0 +1,263 @@
+// Vehicle module - handles vehicle loading, selection, and stats
+
+class VehicleManager {
+    constructor(scene, loader) {
+        this.scene = scene;
+        this.loader = loader;
+        this.vehiclesData = [];
+        this.currentVehicleData = null;
+        this.currentCar = null;
+        this.headlights = [];
+        this.headlightsOn = true;
+        
+        // DOM Elements
+        this.selectElement = document.getElementById('vehicle-select');
+        this.speedBar = document.getElementById('speed-bar');
+        this.handlingBar = document.getElementById('handling-bar');
+        this.accelerationBar = document.getElementById('acceleration-bar');
+        this.shieldBar = document.getElementById('shield-bar');
+        this.descriptionElement = document.getElementById('description');
+        
+        // Bind event listeners
+        this.selectElement.addEventListener('change', this.onVehicleChange.bind(this));
+    }
+    
+    // Load vehicles data from JSON
+    async loadVehiclesData() {
+        try {
+            const response = await fetch('vehicles.json');
+            const data = await response.json();
+            this.vehiclesData = data.vehicles;
+            
+            // Clear loading option
+            this.selectElement.innerHTML = '';
+            
+            // Add options for each vehicle
+            this.vehiclesData.forEach(vehicle => {
+                const option = document.createElement('option');
+                option.value = vehicle.id;
+                option.textContent = vehicle.name;
+                this.selectElement.appendChild(option);
+            });
+            
+            // Load the first vehicle by default
+            if (this.vehiclesData.length > 0) {
+                this.selectElement.value = this.vehiclesData[0].id;
+                this.updateVehicleStats(this.vehiclesData[0]);
+                this.loadCar(this.vehiclesData[0].file);
+            }
+            
+            return this.vehiclesData;
+        } catch (error) {
+            console.error('Error loading vehicles data:', error);
+            return [];
+        }
+    }
+    
+    // Handle vehicle selection change
+    onVehicleChange(e) {
+        const selectedId = e.target.value;
+        const selectedVehicle = this.vehiclesData.find(vehicle => vehicle.id === selectedId);
+        if (selectedVehicle) {
+            this.loadCar(selectedVehicle.file);
+        }
+    }
+    
+    // Update vehicle stats display
+    updateVehicleStats(vehicle) {
+        this.speedBar.style.width = (vehicle.speed * 10) + '%';
+        this.handlingBar.style.width = (vehicle.handling * 10) + '%';
+        this.accelerationBar.style.width = (vehicle.acceleration * 10) + '%';
+        this.shieldBar.style.width = (vehicle.shield * 10) + '%';
+        this.descriptionElement.textContent = vehicle.description;
+    }
+    
+    // Load car model
+    loadCar(modelFile, spawnPoint = null) {
+        // Find the vehicle data
+        const vehicle = this.vehiclesData.find(v => v.file === modelFile);
+        if (vehicle) {
+            this.currentVehicleData = vehicle;
+            this.updateVehicleStats(vehicle);
+            
+            // Emit event for vehicle change
+            const event = new CustomEvent('vehicleChanged', { 
+                detail: { vehicleId: vehicle.id } 
+            });
+            document.dispatchEvent(event);
+        }
+        
+        // Remove previous car and its headlights
+        if (this.currentCar) {
+            this.scene.remove(this.currentCar);
+            this.headlights.forEach(light => {
+                if (light.parent) {
+                    light.parent.remove(light);
+                }
+            });
+            this.headlights = [];
+        }
+        
+        // If no spawn point provided, generate a random one
+        if (!spawnPoint) {
+            spawnPoint = this.getRandomSpawnPoint();
+        }
+        
+        this.loader.load(
+            'models/' + modelFile,
+            (gltf) => {
+                this.currentCar = gltf.scene;
+                
+                // Position car at spawn point
+                this.currentCar.position.copy(spawnPoint.position);
+                this.currentCar.rotation.y = spawnPoint.rotation;
+                this.scene.add(this.currentCar);
+                
+                // Add headlights to the car
+                this.addHeadlights();
+                
+                // Emit event for car loaded
+                const event = new CustomEvent('carLoaded', { 
+                    detail: { 
+                        car: this.currentCar,
+                        position: spawnPoint.position,
+                        rotation: { y: spawnPoint.rotation }
+                    } 
+                });
+                document.dispatchEvent(event);
+            },
+            undefined,
+            (error) => {
+                console.error('Error loading model:', error);
+            }
+        );
+    }
+    
+    // Add headlights to the car
+    addHeadlights() {
+        if (!this.currentCar) return;
+        
+        // Create headlight parameters
+        const headlightColor = 0xffffcc; // Warm white color
+        const headlightIntensity = 8;
+        const headlightDistance = 100;
+        const headlightAngle = Math.PI / 6;
+        const headlightPenumbra = 0.3;
+        const headlightDecay = 1.5;
+        
+        // Adjustable headlight position parameters
+        const headlightOffsetX = 0.275;
+        const headlightOffsetY = 0.39;
+        const headlightOffsetZ = 1.2;
+        const headlightTargetZ = 100;
+        
+        // Create left headlight
+        const leftHeadlight = new THREE.SpotLight(
+            headlightColor, 
+            headlightIntensity,
+            headlightDistance,
+            headlightAngle,
+            headlightPenumbra,
+            headlightDecay
+        );
+        
+        // Position left headlight relative to car
+        leftHeadlight.position.set(headlightOffsetX, headlightOffsetY, headlightOffsetZ);
+        leftHeadlight.castShadow = true;
+        this.currentCar.add(leftHeadlight);
+        leftHeadlight.target.position.set(0, 0, headlightTargetZ);
+        this.currentCar.add(leftHeadlight.target);
+        
+        // Create right headlight
+        const rightHeadlight = new THREE.SpotLight(
+            headlightColor, 
+            headlightIntensity,
+            headlightDistance,
+            headlightAngle,
+            headlightPenumbra,
+            headlightDecay
+        );
+        
+        // Position right headlight relative to car
+        rightHeadlight.position.set(-headlightOffsetX, headlightOffsetY, headlightOffsetZ);
+        rightHeadlight.castShadow = true;
+        this.currentCar.add(rightHeadlight);
+        rightHeadlight.target.position.set(0, 0, headlightTargetZ);
+        this.currentCar.add(rightHeadlight.target);
+        
+        // Store headlights for later reference
+        this.headlights.push(leftHeadlight, rightHeadlight);
+        
+        // Add visible headlight objects
+        const headlightGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+        const headlightMaterial = new THREE.MeshBasicMaterial({ 
+            color: headlightColor, 
+            emissive: headlightColor,
+            emissiveIntensity: 2
+        });
+        
+        const leftHeadlightMesh = new THREE.Mesh(headlightGeometry, headlightMaterial);
+        leftHeadlightMesh.position.copy(leftHeadlight.position);
+        this.currentCar.add(leftHeadlightMesh);
+        
+        const rightHeadlightMesh = new THREE.Mesh(headlightGeometry, headlightMaterial);
+        rightHeadlightMesh.position.copy(rightHeadlight.position);
+        this.currentCar.add(rightHeadlightMesh);
+    }
+    
+    // Toggle headlights
+    toggleHeadlights() {
+        this.headlightsOn = !this.headlightsOn;
+        
+        if (this.headlights.length > 0) {
+            this.headlights.forEach(light => {
+                light.visible = this.headlightsOn;
+            });
+        }
+        
+        // Emit event for headlights toggled
+        const event = new CustomEvent('headlightsToggled', { 
+            detail: { headlightsOn: this.headlightsOn } 
+        });
+        document.dispatchEvent(event);
+        
+        return this.headlightsOn;
+    }
+    
+    // Function to generate a random spawn point
+    getRandomSpawnPoint() {
+        // Define bounds for spawning (keep within the track area)
+        const spawnBounds = {
+            minX: -30,
+            maxX: 30,
+            minZ: -30,
+            maxZ: 30
+        };
+        
+        // Generate random position within bounds
+        const randomX = spawnBounds.minX + Math.random() * (spawnBounds.maxX - spawnBounds.minX);
+        const randomZ = spawnBounds.minZ + Math.random() * (spawnBounds.maxZ - spawnBounds.minZ);
+        
+        // Random rotation (facing any direction)
+        const randomRotation = Math.random() * Math.PI * 2;
+        
+        return {
+            position: new THREE.Vector3(randomX, 0.1, randomZ),
+            rotation: randomRotation
+        };
+    }
+    
+    // Get current car properties
+    getCarProperties() {
+        return {
+            car: this.currentCar,
+            speed: this.currentVehicleData ? this.currentVehicleData.speed : 10,
+            handling: this.currentVehicleData ? this.currentVehicleData.handling * 0.3 : 0.3,
+            acceleration: this.currentVehicleData ? this.currentVehicleData.acceleration * 0.1 : 0.1,
+            shield: this.currentVehicleData ? this.currentVehicleData.shield : 0,
+            vehicleId: this.currentVehicleData ? this.currentVehicleData.id : null
+        };
+    }
+}
+
+export default VehicleManager; 

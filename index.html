@@ -732,7 +732,7 @@
 
         // Initialize Scene, Camera, and Renderer
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.2, 1000);
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.2, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true; // Enable shadows
@@ -743,7 +743,7 @@
         scene.background = new THREE.Color(0x222222);
 
         // Create Ground (Open Field)
-        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundGeometry = new THREE.PlaneGeometry(300, 300);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x2a6e2a, // Darker green for grass
             roughness: 0.8,
@@ -929,13 +929,16 @@
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.85); // Reduced intensity for better headlight effect
         directionalLight.position.set(1, 1, 1).normalize();
         scene.add(directionalLight);
-        const ambientLight = new THREE.AmbientLight(0x202020, 0.8); // Darker ambient for better headlight contrast
+        const ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.5); // Darker ambient for better headlight contrast
         scene.add(ambientLight);
 
         // Car Management
         let currentCar = null;
         let headlights = []; // Array to store headlight objects
         const loader = new THREE.GLTFLoader();
+        
+        // Array to store all trees for collision detection
+        let trees = [];
 
         function loadCar(modelFile) {
             // Find the vehicle data
@@ -980,12 +983,149 @@
                             emitPlayerMovement();
                         }
                     }
+                    
+                    // After car is loaded, add a tree
+                    addRandomTrees();
                 },
                 undefined,
                 (error) => {
                     console.error('Error loading model:', error);
                 }
             );
+        }
+        
+        // Function to add multiple random trees away from the track
+        function addRandomTrees() {
+            console.log('Adding random trees to the scene...');
+            
+            // Clear existing trees array
+            trees = [];
+            
+            // Tree generation parameters
+            const treeCount = 20;                // Number of trees to add
+            const minDistanceFromTrack = 8;      // Minimum distance from track center
+            const trackWidth = 10;               // Track width from the createFlatRaceTrack function
+            const safeDistance = minDistanceFromTrack + trackWidth/2; // Safe distance from track center
+            const treePath = 'objects/tree.glb'; // Path to the tree model
+            
+            // Track points from createFlatRaceTrack function
+            const trackPath = [
+                [-25, -25], // Start point
+                [25, -25],  // Straight section
+                [30, -15],  // Turn 1
+                [15, -5],   // Turn 2
+                [20, 15],   // Turn 3
+                [0, 25],    // Turn 4
+                [-20, 15],  // Turn 5
+                [-30, -5],  // Turn 6
+                [-25, -25]  // Turn 7 and back to start
+            ];
+            
+            // Convert track points to Vector3 for distance calculations
+            const trackPoints = trackPath.map(point => new THREE.Vector3(point[0], 0, point[1]));
+            
+            // Function to check if position is too close to track
+            function isTooCloseToTrack(position) {
+                // Check minimum distance to any track segment
+                for (let i = 0; i < trackPoints.length - 1; i++) {
+                    const start = trackPoints[i];
+                    const end = trackPoints[i + 1];
+                    
+                    // Create a line from start to end
+                    const line = new THREE.Line3(start, end);
+                    
+                    // Get closest point on line to position
+                    const closestPoint = new THREE.Vector3();
+                    line.closestPointToPoint(position, true, closestPoint);
+                    
+                    // Calculate distance to closest point
+                    const distance = position.distanceTo(closestPoint);
+                    
+                    // If too close to any segment, return true
+                    if (distance < safeDistance) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            // Generate and place trees
+            let treesPlaced = 0;
+            let attempts = 0;
+            const maxAttempts = 100; // Limit attempts to prevent infinite loop
+            
+            while (treesPlaced < treeCount && attempts < maxAttempts) {
+                attempts++;
+                
+                // Generate random position within ground boundaries
+                const x = Math.random() * 280 - 140; // -140 to 140
+                const z = Math.random() * 280 - 140; // -140 to 140
+                
+                // Create position vector
+                const position = new THREE.Vector3(x, 0, z);
+                
+                // Skip if too close to track
+                if (isTooCloseToTrack(position)) {
+                    continue;
+                }
+                
+                // Random scale variation
+                const scale = 2 + Math.random() * 3; // Scale between 2 and 5
+                
+                // Load tree model
+                loader.load(
+                    treePath,
+                    (gltf) => {
+                        const tree = gltf.scene;
+                        
+                        // Position the tree
+                        tree.position.set(x, 0, z);
+                        tree.scale.set(scale, scale, scale);
+                        
+                        // Random rotation for variety
+                        tree.rotation.y = Math.random() * Math.PI * 2;
+                        
+                        // Add collision data to tree
+                        tree.userData.isTree = true;
+                        tree.userData.collisionRadius = 1.5 * scale; // Scale-based collision radius
+                        
+                        // Add to scene
+                        scene.add(tree);
+                        
+                        // Add to trees array for collision detection
+                        trees.push({
+                            object: tree,
+                            position: new THREE.Vector3(x, 0, z),
+                            radius: 0.3 * scale // Reduced collision radius for more accuracy
+                        });
+                        
+                        treesPlaced++;
+                    },
+                    undefined,
+                    (error) => {
+                        console.error('Error loading tree model:', error);
+                        
+                        // Create fallback tree if model fails to load
+                        const geometry = new THREE.ConeGeometry(2, 5, 8);
+                        const material = new THREE.MeshStandardMaterial({ color: 0x009900 });
+                        const cone = new THREE.Mesh(geometry, material);
+                        cone.position.set(x, 2.5, z);
+                        cone.castShadow = true;
+                        scene.add(cone);
+                        
+                        // Add fallback tree to trees array
+                        trees.push({
+                            object: cone,
+                            position: new THREE.Vector3(x, 0, z),
+                            radius: 1.0 // Reduced fixed collision radius for fallback trees
+                        });
+                        
+                        treesPlaced++;
+                    }
+                );
+            }
+            
+            console.log(`Placed ${treesPlaced} trees after ${attempts} attempts`);
         }
         
         // Function to add headlights to the car
@@ -1119,9 +1259,10 @@
         const clock = new THREE.Clock();
         
         // Collision parameters
-        const carCollisionRadius = 2.0; // Collision radius for cars
+        const carCollisionRadius = 1.2; // Reduced radius for more accurate car collisions
         const collisionRecoveryTime = 1000; // Time in ms before control is restored after collision
         const collisionBounceStrength = 0.5; // How strongly cars bounce off each other
+        const treeCollisionBounceStrength = 0.7; // Stronger bounce for trees (they're solid)
         
         // Synchronization time tracking
         let lastUpdateTime = 0;
@@ -1141,6 +1282,56 @@
                     y: currentCar.rotation.y
                 }
             });
+        }
+
+        // Check for collisions with trees
+        function checkTreeCollisions() {
+            if (!currentCar) return;
+            
+            // Get player car's position
+            const playerPos = currentCar.position.clone();
+            
+            // Check collision with each tree
+            for (const tree of trees) {
+                const treePos = tree.position;
+                
+                // Calculate distance between car and tree
+                const distance = playerPos.distanceTo(treePos);
+                
+                // If distance is less than combined radius, we have a collision
+                if (distance < (carCollisionRadius + tree.radius)) {
+                    // Handle tree collision
+                    handleTreeCollision(treePos);
+                    
+                    // Only process one collision at a time
+                    break;
+                }
+            }
+        }
+        
+        // Handle collision between player car and a tree
+        function handleTreeCollision(treePos) {
+            if (controlsDisabled) return; // Already handling a collision
+            
+            // Calculate collision response direction (pushes away from tree)
+            const pushDirection = new THREE.Vector3().subVectors(currentCar.position, treePos).normalize();
+            
+            // Apply "bounce" force to the player's car - stronger than car collisions because trees don't move
+            currentCar.position.add(pushDirection.multiplyScalar(treeCollisionBounceStrength));
+            
+            // Temporarily disable car controls
+            disableControls();
+            
+            // Play collision sound
+            playCollisionSound();
+            
+            // Show visual collision effect
+            showCollisionEffect();
+            
+            // Update server with new position if connected
+            if (socket && socket.connected) {
+                emitPlayerMovement();
+            }
         }
 
         // Update Function
@@ -1195,6 +1386,9 @@
                 
                 // Check for collisions with other players
                 checkCollisions();
+                
+                // Check for collisions with trees
+                checkTreeCollisions();
             }
             
             // Update other players (interpolate movement)

@@ -138,8 +138,8 @@ class GameEngine {
         this.offRoadIndicatorVisible = false;
         this.createOffRoadIndicator();
         
-        // Initialize bomb counter display
-        this.createBombCounter();
+        // Initialize bomb counter display with initial value
+        this.updateBombCounter();
     }
     
     // Setup event listeners
@@ -1394,33 +1394,11 @@ class GameEngine {
         console.log('Bomb thrown. Total active bombs:', this.bombs.length);
     }
     
-    // Create bomb counter display
-    createBombCounter() {
-        // Create the bomb counter container
-        const bombCounter = document.createElement('div');
-        bombCounter.id = 'bomb-counter';
-        bombCounter.style.position = 'fixed';
-        bombCounter.style.bottom = '20px';
-        bombCounter.style.right = '20px';
-        bombCounter.style.padding = '10px';
-        bombCounter.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        bombCounter.style.color = 'white';
-        bombCounter.style.borderRadius = '5px';
-        bombCounter.style.fontFamily = 'Arial, sans-serif';
-        bombCounter.style.zIndex = '1000';
-        
-        // Set initial text
-        this.updateBombCounter();
-        
-        // Add to document
-        document.body.appendChild(bombCounter);
-    }
-    
     // Update bomb counter display
     updateBombCounter() {
         const bombCounter = document.getElementById('bomb-counter');
         if (bombCounter) {
-            bombCounter.textContent = `Bombs: ${this.bombsRemaining}`;
+            bombCounter.textContent = `BOMBS: ${this.bombsRemaining}`;
         }
     }
     

@@ -179,24 +179,81 @@ class GameEngine {
     
     // Create a simple flat ground
     createGround() {
-        console.log('Creating a simple flat ground...');
+        console.log('Creating infinite ground system...');
         
-        // Simple large flat ground
-        const groundSize = 500;
-        const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
+        // Create a grid of ground planes to follow the player
+        this.groundSize = 500; // Keep the same size but save it as a property
+        const groundGeometry = new THREE.PlaneGeometry(this.groundSize, this.groundSize);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x2a6e2a,
             roughness: 0.8,
             metalness: 0.1
         });
         
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        this.scene.add(ground);
+        // Create a pool of ground pieces that will be repositioned as player moves
+        this.groundPieces = [];
+        const piecesPerSide = 3; // 3x3 grid of ground pieces
+        const halfSize = Math.floor(piecesPerSide / 2);
+        
+        for (let x = -halfSize; x <= halfSize; x++) {
+            for (let z = -halfSize; z <= halfSize; z++) {
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                ground.rotation.x = -Math.PI / 2;
+                ground.position.set(
+                    x * this.groundSize,
+                    0,
+                    z * this.groundSize
+                );
+                ground.receiveShadow = true;
+                this.scene.add(ground);
+                this.groundPieces.push({
+                    mesh: ground,
+                    gridX: x,
+                    gridZ: z
+                });
+            }
+        }
+        
+        // Track the current ground grid cell the player is in
+        this.currentGroundCell = { x: 0, z: 0 };
         
         // Add a distant skybox
         this.addSkybox();
+    }
+    
+    // Add function to update ground pieces as player moves
+    updateGroundPosition(playerPosition) {
+        if (!playerPosition) return;
+        
+        // Calculate which grid cell the player is in
+        const cellX = Math.floor(playerPosition.x / this.groundSize);
+        const cellZ = Math.floor(playerPosition.z / this.groundSize);
+        
+        // If player moved to a new cell, reposition the ground pieces
+        if (cellX !== this.currentGroundCell.x || cellZ !== this.currentGroundCell.z) {
+            this.currentGroundCell.x = cellX;
+            this.currentGroundCell.z = cellZ;
+            
+            const halfSize = Math.floor(Math.sqrt(this.groundPieces.length) / 2);
+            
+            // Reposition each ground piece to create an infinite scrolling effect
+            this.groundPieces.forEach(piece => {
+                // Calculate new grid position relative to player
+                const newGridX = ((piece.gridX - this.currentGroundCell.x) % (2 * halfSize + 1) + (2 * halfSize + 1)) % (2 * halfSize + 1) - halfSize + this.currentGroundCell.x;
+                const newGridZ = ((piece.gridZ - this.currentGroundCell.z) % (2 * halfSize + 1) + (2 * halfSize + 1)) % (2 * halfSize + 1) - halfSize + this.currentGroundCell.z;
+                
+                // If the piece needs to move, update its position
+                if (newGridX !== piece.gridX || newGridZ !== piece.gridZ) {
+                    piece.gridX = newGridX;
+                    piece.gridZ = newGridZ;
+                    piece.mesh.position.set(
+                        piece.gridX * this.groundSize,
+                        0,
+                        piece.gridZ * this.groundSize
+                    );
+                }
+            });
+        }
     }
     
     // Add a skybox for better atmosphere
@@ -256,10 +313,10 @@ class GameEngine {
     
     // Add fluffy clouds to the sky
     addClouds() {
-        const cloudCount = Math.floor(Math.random() * 10) + 24; // Number of clouds to create
-        const skyRadius = 1080; // Slightly smaller than the sky dome
-        const minHeight = Math.random() * 100; // Minimum cloud height
-        const maxHeight = Math.random() * 100; // Maximum cloud height
+        const cloudCount = Math.floor(Math.random() * 10) + 80; // Number of clouds to create
+        const skyRadius = 1440; // Slightly smaller than the sky dome
+        const minHeight = Math.random() * 300; // Minimum cloud height
+        const maxHeight = Math.random() * 20; // Maximum cloud height
         
         // Cloud material with 50% transparency
         const cloudMaterial = new THREE.MeshPhongMaterial({
@@ -527,9 +584,10 @@ class GameEngine {
         context.translate(-canvas.width, 0);
         
         // Draw the text (normally)
-        context.font = 'bold 72px Arial';
+        context.font = 'bold 120px Arial';
         context.textAlign = 'center';
         context.textBaseline = 'middle';
+        context.letterSpacing = '2em';
         context.fillStyle = '#FFFFFF';  // White text
         context.fillText('START', canvas.width / 2, canvas.height / 2);
         
@@ -627,7 +685,7 @@ class GameEngine {
         this.trees = [];
         
         // Tree generation parameters
-        const treeCount = 500;
+        const treeCount = Math.floor(Math.random() * 100) + 600;
         const minDistanceFromTrack = 10; // Keep trees further away from track
         const treePath = 'objects/tree.glb';
         
@@ -1208,6 +1266,9 @@ class GameEngine {
                 // Check for collisions with trap spikes
                 this.trapsManager.checkCollisions(car);
             }
+            
+            // Update infinite ground to follow the player
+            this.updateGroundPosition(car.position);
         }
         
         // Update other players

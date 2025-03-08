@@ -101,6 +101,7 @@ class GameEngine {
         // Custom events from other modules
         document.addEventListener('playHorn', this.playHorn.bind(this));
         document.addEventListener('playerCollision', this.handlePlayerCollision.bind(this));
+        document.addEventListener('otherPlayerCollectedItem', this.handleOtherPlayerCollectedItem.bind(this));
     }
     
     // Handle window resize
@@ -507,7 +508,7 @@ class GameEngine {
         }, this.collisionRecoveryTime);
     }
     
-    // Handle player collision event from server
+    // Function to handle player collision event received from server
     handlePlayerCollision(event) {
         const carProperties = this.vehicleManager.getCarProperties();
         const car = carProperties.car;
@@ -537,6 +538,8 @@ class GameEngine {
             
             // Update server with our new position
             this.multiplayerManager.emitPlayerMovement(car);
+            
+            console.log('Handled collision from server event');
         }
     }
     
@@ -645,6 +648,9 @@ class GameEngine {
             // Check for collisions with objects
             this.checkTreeCollisions();
             
+            // Check for collisions with other players' cars - this was missing!
+            this.checkPlayerCollisions(car);
+            
             // Check for collisions with collectibles
             this.collectiblesManager.checkCollisions(car);
         }
@@ -662,6 +668,63 @@ class GameEngine {
         const delta = this.clock.getDelta();
         this.update(delta);
         this.renderer.render(this.scene, this.camera);
+    }
+    
+    // Add this method to check for collisions with other players' cars
+    checkPlayerCollisions(car) {
+        if (!car || !this.multiplayerManager) return;
+        
+        const playerPos = car.position.clone();
+        const otherPlayers = this.multiplayerManager.getOtherPlayers();
+        
+        // Check collision with each other player
+        for (const id in otherPlayers) {
+            const otherPlayer = otherPlayers[id];
+            const otherPos = otherPlayer.position.clone();
+            
+            // Calculate distance between cars
+            const distance = playerPos.distanceTo(otherPos);
+            
+            // If distance is less than the combined collision radius, we have a collision
+            if (distance < this.carCollisionRadius * 2) {
+                // Handle the collision
+                this.handlePlayerCollision(car, otherPos);
+                
+                // Notify server about collision
+                this.multiplayerManager.emitCarCollision(id, car.position);
+                
+                // Only handle one collision at a time
+                break;
+            }
+        }
+    }
+    
+    // Handle collision between player car and another car
+    handlePlayerCollision(car, otherPos) {
+        if (this.controlsDisabled) return; // Already handling a collision
+        
+        // Calculate collision response direction (pushes away from other car)
+        const pushDirection = new THREE.Vector3().subVectors(car.position, otherPos).normalize();
+        
+        // Apply "bounce" force to the player's car
+        car.position.add(pushDirection.multiplyScalar(this.collisionBounceStrength));
+        
+        // Temporarily disable car controls
+        this.disableControls();
+        
+        // Play collision sound
+        this.playCollisionSound();
+        
+        // Show visual collision effect
+        this.showCollisionEffect();
+    }
+    
+    // Handle when another player collects an item
+    handleOtherPlayerCollectedItem(event) {
+        const data = event.detail;
+        console.log('Handling other player collectible:', data);
+        // Tell collectibles manager to mark this item as collected by remote player
+        this.collectiblesManager.markCollected(data.itemId, data.playerId);
     }
 }
 

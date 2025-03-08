@@ -270,8 +270,8 @@ class CollectiblesManager {
         }
     }
     
-    // Show visual effect when collecting an item
-    showCollectionEffect(collectibleData) {
+    // Show visual effect when collecting an item, with optional opacity
+    showCollectionEffect(collectibleData, opacity = 1.0) {
         // Choose appropriate effect based on collectible type
         let effectElement = this.coinEffect;
         
@@ -280,6 +280,13 @@ class CollectiblesManager {
         }
         
         if (effectElement) {
+            // Set opacity if provided
+            if (opacity !== 1.0) {
+                effectElement.style.opacity = opacity;
+            } else {
+                effectElement.style.opacity = 1.0;
+            }
+            
             // Reset animation
             effectElement.style.animation = 'none';
             effectElement.offsetHeight; // Trigger reflow
@@ -308,6 +315,33 @@ class CollectiblesManager {
             score: this.playerScore,
             shield: this.playerShield
         };
+    }
+    
+    // Mark a collectible as collected by another player
+    markCollected(collectibleId, playerId) {
+        console.log(`Remote collectible collected: ${collectibleId} by player ${playerId}`);
+        
+        // Find the collectible by ID
+        const collectible = this.spawnedCollectibles.find(c => c.id === collectibleId);
+        
+        if (collectible && !collectible.collected) {
+            // Mark as collected without applying local effects
+            collectible.collected = true;
+            
+            // Hide the collectible
+            if (collectible.object) {
+                collectible.object.visible = false;
+            }
+            
+            // No points for this player since they didn't collect it
+            // But still show a visual effect for feedback
+            this.showCollectionEffect(collectible.data, 0.3); // Reduced opacity
+            
+            // Handle respawn
+            setTimeout(() => {
+                this.respawnCollectible(collectible);
+            }, collectible.respawnTime);
+        }
     }
 }
 

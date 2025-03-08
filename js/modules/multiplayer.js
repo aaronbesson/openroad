@@ -24,9 +24,12 @@ class MultiplayerManager {
         this.joinButton = document.getElementById('join-button');
         this.playerNameInput = document.getElementById('player-name');
         
-        // Bind event listeners
+        // Bind event listeners to UI elements
         if (this.joinButton) {
             this.joinButton.addEventListener('click', this.connectToServer.bind(this));
+            console.log('Join button event listener added');
+        } else {
+            console.warn('Join button not found');
         }
         
         if (this.playerNameInput) {
@@ -35,6 +38,8 @@ class MultiplayerManager {
                     this.connectToServer();
                 }
             });
+        } else {
+            console.warn('Player name input not found');
         }
         
         // Setup custom event listeners
@@ -46,11 +51,23 @@ class MultiplayerManager {
     
     // Connect to socket.io server
     connectToServer() {
-        this.playerName = this.playerNameInput.value || "Player";
+        if (this.connected) return; // Don't connect if already connected
         
+        // Get the player name from the input field
+        if (this.playerNameInput) {
+            this.playerName = this.playerNameInput.value || "Player";
+            console.log('Using player name:', this.playerName);
+        } else {
+            console.warn('Player name input not found, using default name');
+        }
+        
+        // Hide the connection screen
         if (this.connectionScreen) {
             this.connectionScreen.style.display = 'none';
+            console.log('Connection screen hidden');
         }
+        
+        console.log('Connecting to socket.io server...');
         
         // Initialize Socket.io connection
         this.socket = io();
@@ -67,10 +84,18 @@ class MultiplayerManager {
             this.playerID = this.socket.id;
             this.connected = true;
             console.log('Connected to server with ID:', this.playerID);
+            
+            // Attempt to join game immediately if we already have car loaded
+            const carProps = document.querySelector('.vehicle-select');
+            if (carProps && carProps.value) {
+                // We might have a car already - dispatch an event to check
+                document.dispatchEvent(new CustomEvent('checkCarLoaded'));
+            }
         });
         
         // When we receive the current players list
         this.socket.on('currentPlayers', (players) => {
+            console.log('Received current players:', players);
             Object.keys(players).forEach((id) => {
                 // Add all players except ourself
                 if (id !== this.playerID) {
@@ -82,6 +107,7 @@ class MultiplayerManager {
         
         // When a new player joins
         this.socket.on('newPlayer', (playerInfo) => {
+            console.log('New player joined:', playerInfo);
             this.addOtherPlayer(playerInfo);
             this.updatePlayerList();
         });
@@ -110,6 +136,7 @@ class MultiplayerManager {
         
         // When a player changes vehicle
         this.socket.on('playerVehicleChanged', (changeData) => {
+            console.log('Player changed vehicle:', changeData);
             if (this.otherPlayers[changeData.id]) {
                 // Remove the old vehicle
                 this.scene.remove(this.otherPlayers[changeData.id]);
@@ -168,6 +195,7 @@ class MultiplayerManager {
         
         // When a player shares a collectible update
         this.socket.on('playerCollectedItem', (data) => {
+            console.log('Another player collected item:', data);
             // Dispatch event to handle collectible sync in main game
             const event = new CustomEvent('otherPlayerCollectedItem', {
                 detail: data
@@ -177,6 +205,7 @@ class MultiplayerManager {
         
         // When a player leaves
         this.socket.on('playerLeft', (id) => {
+            console.log('Player left:', id);
             if (this.otherPlayers[id]) {
                 // Remove their car
                 this.scene.remove(this.otherPlayers[id]);
@@ -234,9 +263,9 @@ class MultiplayerManager {
     
     // Handle when local player's car is loaded
     onCarLoaded(event) {
+        console.log('Car loaded event received:', event.detail);
         if (this.socket && this.socket.connected && this.playerID) {
             const carData = event.detail;
-            
             this.joinGame(carData);
         }
     }
@@ -245,6 +274,7 @@ class MultiplayerManager {
     onVehicleChanged(event) {
         if (this.socket && this.socket.connected) {
             const vehicleId = event.detail.vehicleId;
+            console.log('Emitting vehicle change:', vehicleId);
             this.socket.emit('vehicleChange', { vehicleId: vehicleId });
         }
     }
@@ -277,6 +307,13 @@ class MultiplayerManager {
         const position = carData.position;
         const rotation = carData.rotation;
         
+        console.log('Joining game with car data:', {
+            vehicleId: carData.vehicleId || this.getSelectedVehicleId(),
+            position: { x: position.x, y: position.y, z: position.z },
+            rotation: { y: rotation.y },
+            playerName: this.playerName
+        });
+        
         // Join as a player
         this.socket.emit('playerJoin', {
             vehicleId: carData.vehicleId || this.getSelectedVehicleId(),
@@ -294,6 +331,7 @@ class MultiplayerManager {
     
     // Add another player to the game
     addOtherPlayer(playerInfo) {
+        console.log('Adding other player:', playerInfo);
         // Store player data
         this.otherPlayersData[playerInfo.id] = playerInfo;
         
@@ -319,16 +357,28 @@ class MultiplayerManager {
             const option = Array.from(vehicleSelect.options).find(opt => opt.value === vehicleId);
             
             if (option) {
-                // This is a bit of a hack - we're assuming the option value (ID) matches the start of the filename
+                // Try to get the file by asking the server or constructing it
+                // For now, we'll assume the file is just [id].glb
                 modelFile = vehicleId + '.glb';
             } else {
                 console.error('Could not find vehicle model for ID:', vehicleId);
-                return;
+                // Use a default vehicle as fallback
+                const firstOption = vehicleSelect.options[0];
+                if (firstOption) {
+                    vehicleId = firstOption.value;
+                    modelFile = vehicleId + '.glb';
+                } else {
+                    // No options available, use a hardcoded fallback
+                    console.error('No vehicle options available');
+                    modelFile = 'sports-car.glb'; // Fallback to a default model
+                }
             }
         } else {
             // Fallback to a default model if we can't determine it
-            modelFile = 'default_car.glb';
+            modelFile = 'sports-car.glb';
         }
+        
+        console.log(`Loading other player's car: ${modelFile}`);
         
         loader.load(
             'models/' + modelFile,
@@ -365,6 +415,29 @@ class MultiplayerManager {
             undefined,
             (error) => {
                 console.error('Error loading other player model:', error);
+                console.log('Attempting to load fallback model');
+                
+                // Try to load a fallback model
+                loader.load(
+                    'models/sports-car.glb', // Fallback model
+                    (gltf) => {
+                        const car = gltf.scene;
+                        car.position.set(
+                            playerInfo.position.x,
+                            playerInfo.position.y,
+                            playerInfo.position.z
+                        );
+                        car.rotation.y = playerInfo.rotation.y;
+                        this.otherPlayers[playerId] = car;
+                        this.scene.add(car);
+                        this.addHeadlightsToOtherPlayer(car, playerId);
+                        this.updateNameLabel(playerId);
+                    },
+                    undefined,
+                    (secondError) => {
+                        console.error('Failed to load fallback model:', secondError);
+                    }
+                );
             }
         );
     }
@@ -591,6 +664,11 @@ class MultiplayerManager {
         if (!this.socket || !this.socket.connected) return;
         
         this.socket.emit('hornSound', {});
+    }
+    
+    // Get other players for collision detection
+    getOtherPlayers() {
+        return this.otherPlayers;
     }
 }
 

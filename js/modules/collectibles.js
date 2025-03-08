@@ -396,7 +396,9 @@ class CollectiblesManager {
     // Update score display
     updateScoreDisplay() {
         if (this.scoreDisplay) {
-            this.scoreDisplay.textContent = `Score: ${this.playerScore}`;
+            // Format with leading zeros for arcade feel
+            const formattedScore = this.playerScore.toString().padStart(6, '0');
+            this.scoreDisplay.textContent = `SCORE: ${formattedScore}`;
         }
     }
     

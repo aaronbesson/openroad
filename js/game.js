@@ -1089,7 +1089,7 @@ class GameEngine {
                         hasMoved = true;
                     }
                     
-                    // Vertical movement for flying - track input for automatic pitching
+                    // Vertical movement for flying - NO automatic pitch
                     if (this.keys.q) {
                         car.position.y += currentCarSpeed * acceleration * delta * 0.5;
                         inputs.ascending = true;
@@ -1103,18 +1103,14 @@ class GameEngine {
                         hasMoved = true;
                     }
                     
-                    // Manual pitch control - reduces automatic effect
+                    // Manual pitch control - NO automatic effect
                     if (this.keys.r) {
-                        car.rotation.x -= turnSpeed * delta * 0.5; // Pitch up
-                        // Limit maximum pitch
-                        car.rotation.x = Math.max(car.rotation.x, -Math.PI / 3);
+                        car.rotation.x = 0; // Reset pitch to level
                         inputs.pitchingUp = true;
                         hasMoved = true;
                     }
                     if (this.keys.f) {
-                        car.rotation.x += turnSpeed * delta * 0.5; // Pitch down
-                        // Limit maximum pitch
-                        car.rotation.x = Math.min(car.rotation.x, Math.PI / 3);
+                        car.rotation.x = 0; // Reset pitch to level
                         inputs.pitchingDown = true;
                         hasMoved = true;
                     }

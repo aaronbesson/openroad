@@ -1,0 +1,204 @@
+{
+  "vehicles": [
+    {
+      "id": "car",
+      "name": "Standard Car",
+      "file": "car.glb",
+      "speed": 10,
+      "handling": 7,
+      "acceleration": 6,
+      "shield": 5,
+      "description": "A balanced everyday vehicle with decent all-around performance."
+    },
+    {
+      "id": "sports",
+      "name": "Sports Car",
+      "file": "sports.glb",
+      "speed": 15,
+      "handling": 9,
+      "acceleration": 10,
+      "shield": 3,
+      "description": "High-speed sports car with excellent handling but low protection."
+    },
+    {
+      "id": "race-future",
+      "name": "Future Racer",
+      "file": "race-future.glb",
+      "speed": 18,
+      "handling": 10,
+      "acceleration": 12,
+      "shield": 2,
+      "description": "Futuristic racing car with top speed and handling, but minimal protection."
+    },
+    {
+      "id": "hatchback-sports",
+      "name": "Sports Hatchback",
+      "file": "hatchback-sports.glb",
+      "speed": 12,
+      "handling": 8,
+      "acceleration": 9,
+      "shield": 4,
+      "description": "Sporty hatchback balancing speed and practicality."
+    },
+    {
+      "id": "sedan",
+      "name": "Sedan",
+      "file": "sedan.glb",
+      "speed": 9,
+      "handling": 6,
+      "acceleration": 5,
+      "shield": 6,
+      "description": "Comfortable family sedan with moderate performance and good protection."
+    },
+    {
+      "id": "suv",
+      "name": "SUV",
+      "file": "suv.glb",
+      "speed": 8,
+      "handling": 5,
+      "acceleration": 4,
+      "shield": 8,
+      "description": "Sturdy SUV with excellent protection but slower speed and handling."
+    },
+    {
+      "id": "suv-luxury",
+      "name": "Luxury SUV",
+      "file": "suv-luxury.glb",
+      "speed": 9,
+      "handling": 6,
+      "acceleration": 7,
+      "shield": 7,
+      "description": "Premium SUV offering better performance than standard models with good protection."
+    },
+    {
+      "id": "truck",
+      "name": "Pickup Truck",
+      "file": "truck.glb",
+      "speed": 7,
+      "handling": 4,
+      "acceleration": 3,
+      "shield": 9,
+      "description": "Rugged pickup truck with excellent protection and off-road ability."
+    },
+    {
+      "id": "truck-flat",
+      "name": "Flatbed Truck",
+      "file": "truck-flat.glb",
+      "speed": 6,
+      "handling": 3,
+      "acceleration": 2,
+      "shield": 10,
+      "description": "Heavy-duty flatbed truck with maximum protection but slower movement."
+    },
+    {
+      "id": "van",
+      "name": "Van",
+      "file": "van.glb",
+      "speed": 7,
+      "handling": 4,
+      "acceleration": 4,
+      "shield": 8,
+      "description": "Practical van with good protection and moderate speed."
+    },
+    {
+      "id": "tractor",
+      "name": "Tractor",
+      "file": "tractor.glb",
+      "speed": 5,
+      "handling": 3,
+      "acceleration": 2,
+      "shield": 9,
+      "description": "Farm tractor with excellent durability but very slow speed."
+    },
+    {
+      "id": "tractor-shovel",
+      "name": "Shovel Tractor",
+      "file": "tractor-shovel.glb",
+      "speed": 4,
+      "handling": 3,
+      "acceleration": 2,
+      "shield": 10,
+      "description": "Heavy construction vehicle with maximum protection but minimal speed."
+    },
+    {
+      "id": "police",
+      "name": "Police Car",
+      "file": "police.glb",
+      "speed": 13,
+      "handling": 8,
+      "acceleration": 8,
+      "shield": 6,
+      "description": "Police pursuit vehicle with enhanced speed and handling."
+    },
+    {
+      "id": "tractor-police",
+      "name": "Police Tractor",
+      "file": "tractor-police.glb",
+      "speed": 6,
+      "handling": 4,
+      "acceleration": 3,
+      "shield": 9,
+      "description": "Specialized police tractor for rough terrain with good protection."
+    },
+    {
+      "id": "taxi",
+      "name": "Taxi",
+      "file": "taxi.glb",
+      "speed": 9,
+      "handling": 7,
+      "acceleration": 6,
+      "shield": 5,
+      "description": "City taxi with decent all-around performance."
+    },
+    {
+      "id": "delivery",
+      "name": "Delivery Van",
+      "file": "delivery.glb",
+      "speed": 7,
+      "handling": 5,
+      "acceleration": 4,
+      "shield": 7,
+      "description": "Delivery van balancing practicality and protection."
+    },
+    {
+      "id": "delivery-flat",
+      "name": "Flatbed Delivery",
+      "file": "delivery-flat.glb",
+      "speed": 6,
+      "handling": 4,
+      "acceleration": 3,
+      "shield": 8,
+      "description": "Flatbed delivery truck with good protection but slower speed."
+    },
+    {
+      "id": "ambulance",
+      "name": "Ambulance",
+      "file": "ambulance.glb",
+      "speed": 11,
+      "handling": 6,
+      "acceleration": 8,
+      "shield": 7,
+      "description": "Emergency ambulance with good acceleration and protection."
+    },
+    {
+      "id": "firetruck",
+      "name": "Fire Truck",
+      "file": "firetruck.glb",
+      "speed": 8,
+      "handling": 4,
+      "acceleration": 5,
+      "shield": 10,
+      "description": "Heavy fire truck with maximum protection but limited speed."
+    },
+    {
+      "id": "garbage-truck",
+      "name": "Garbage Truck",
+      "file": "garbage-truck.glb",
+      "speed": 5,
+      "handling": 3,
+      "acceleration": 2,
+      "shield": 10,
+      "description": "Durable garbage truck with maximum protection but very slow."
+    }
+  ]
+} 

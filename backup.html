@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Car Driving Game</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+        .controls { 
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 100;
+            max-width: 300px;
+        }
+        .vehicle-select {
+            margin-bottom: 10px;
+            width: 100%;
+            padding: 8px;
+            font-size: 16px;
+            border-radius: 4px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .stat-bar {
+            margin-top: 5px;
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .stat-fill {
+            height: 100%;
+            background: #4CAF50;
+        }
+        .description {
+            margin-top: 15px;
+            font-style: italic;
+            font-size: 14px;
+        }
+        /* New styles for multiplayer */
+        .player-name {
+            position: absolute;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 14px;
+            transform: translateX(-50%);
+            pointer-events: none;
+        }
+        .multiplayer-info {
+            margin-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.3);
+            padding-top: 10px;
+        }
+        .controls-info {
+            margin-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.3);
+            padding-top: 10px;
+            font-size: 14px;
+            color: white;
+        }
+        .controls-key {
+            display: inline-block;
+            background: rgba(255,255,255,0.3);
+            color: #fff;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin: 3px 0;
+        }
+        .player-list {
+            max-height: 100px;
+            overflow-y: auto;
+            margin-top: 5px;
+        }
+        .player-item {
+            padding: 3px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        /* Connection UI */
+        #connection-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .connection-box {
+            background: #222;
+            padding: 30px;
+            border-radius: 8px;
+            width: 400px;
+            max-width: 90%;
+        }
+        .connection-box h2 {
+            margin-top: 0;
+            color: white;
+        }
+        .connection-box input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: none;
+            font-size: 16px;
+        }
+        .connection-box button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        .connection-box .controls-info {
+            margin-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.3);
+            padding-top: 15px;
+            color: white;
+            font-size: 14px;
+        }
+        .connection-box .controls-info h3 {
+            margin-top: 0;
+            color: white;
+        }
+        .connection-box .controls-info p {
+            color: white;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Connection Screen -->
+    <div id="connection-screen">
+        <div class="connection-box">
+            <h2>Join Multiplayer Game</h2>
+            <input type="text" id="player-name" placeholder="Enter your name" value="Player">
+            <button id="join-button">Join Game</button>
+            
+            <!-- Controls info moved to connection screen -->
+            <div class="controls-info">
+                <h3>Controls</h3>
+                <p>Use the following keys to control your vehicle:</p>
+                <p><span class="controls-key">Up Arrow</span> or <span class="controls-key">W</span> - Accelerate</p>
+                <p><span class="controls-key">Down Arrow</span> or <span class="controls-key">S</span> - Brake</p>
+                <p><span class="controls-key">Left Arrow</span> or <span class="controls-key">A</span> - Turn Left</p>
+                <p><span class="controls-key">Right Arrow</span> or <span class="controls-key">D</span> - Turn Right</p>
+                <p><span class="controls-key">Space</span> - Toggle Headlights</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <h3>Select Vehicle</h3>
+        <select id="vehicle-select" class="vehicle-select">
+            <option value="">Loading vehicles...</option>
+        </select>
+        <div class="stats">
+            <div>
+                <div>Speed:</div>
+                <div class="stat-bar"><div id="speed-bar" class="stat-fill" style="width: 0%"></div></div>
+            </div>
+            <div>
+                <div>Handling:</div>
+                <div class="stat-bar"><div id="handling-bar" class="stat-fill" style="width: 0%"></div></div>
+            </div>
+            <div>
+                <div>Acceleration:</div>
+                <div class="stat-bar"><div id="acceleration-bar" class="stat-fill" style="width: 0%"></div></div>
+            </div>
+            <div>
+                <div>Shield:</div>
+                <div class="stat-bar"><div id="shield-bar" class="stat-fill" style="width: 0%"></div></div>
+            </div>
+        </div>
+        <div id="description" class="description"></div>
+
+        <!-- Multiplayer info section -->
+        <div class="multiplayer-info">
+            <h3>Connected Players (<span id="player-count">0</span>)</h3>
+            <div id="player-list" class="player-list"></div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Store vehicle data
+        let vehiclesData = [];
+        let currentVehicleData = null;
+
+        // Multiplayer variables
+        let socket;
+        let playerName = "Player";
+        let playerID;
+        let otherPlayers = {}; // Store other players' cars
+        let otherPlayersData = {}; // Store other players' data
+        let nameLabels = {}; // Store name labels for players
+        let otherPlayersHeadlights = {}; // Store headlights for other players
+        let headlightsOn = true; // Headlight state
+
+        // Connection handling
+        document.getElementById('join-button').addEventListener('click', connectToServer);
+        document.getElementById('player-name').addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                connectToServer();
+            }
+        });
+
+        function connectToServer() {
+            playerName = document.getElementById('player-name').value || "Player";
+            document.getElementById('connection-screen').style.display = 'none';
+            
+            // Initialize Socket.io connection
+            socket = io();
+            
+            // Socket connection event handlers
+            socket.on('connect', function() {
+                playerID = socket.id;
+                console.log('Connected to server with ID:', playerID);
+                
+                // Join the game after the first vehicle is loaded
+                if (vehiclesData.length > 0) {
+                    joinGame();
+                }
+            });
+            
+            // When we receive the current players list
+            socket.on('currentPlayers', function(players) {
+                Object.keys(players).forEach(function(id) {
+                    // Add all players except ourself
+                    if (id !== playerID) {
+                        addOtherPlayer(players[id]);
+                    }
+                });
+                updatePlayerList();
+            });
+            
+            // When a new player joins
+            socket.on('newPlayer', function(playerInfo) {
+                addOtherPlayer(playerInfo);
+                updatePlayerList();
+            });
+            
+            // When a player moves
+            socket.on('playerMoved', function(moveData) {
+                if (otherPlayers[moveData.id]) {
+                    // Smoothly move the player
+                    const player = otherPlayers[moveData.id];
+                    
+                    // Create target position and rotation
+                    const targetPos = new THREE.Vector3(
+                        moveData.position.x,
+                        moveData.position.y,
+                        moveData.position.z
+                    );
+                    
+                    // Store target values for interpolation in animation loop
+                    player.targetPosition = targetPos;
+                    player.targetRotation = { y: moveData.rotation.y };
+                    
+                    // Update the name label position
+                    updateNameLabel(moveData.id);
+                }
+            });
+            
+            // When a player changes vehicle
+            socket.on('playerVehicleChanged', function(changeData) {
+                if (otherPlayers[changeData.id]) {
+                    // Remove the old vehicle
+                    scene.remove(otherPlayers[changeData.id]);
+                    
+                    // Clean up headlights (important to prevent memory leaks)
+                    if (otherPlayersHeadlights[changeData.id]) {
+                        delete otherPlayersHeadlights[changeData.id];
+                    }
+                    
+                    // Load the new vehicle
+                    const playerData = otherPlayersData[changeData.id];
+                    playerData.vehicleId = changeData.vehicleId;
+                    
+                    loadOtherPlayerCar(changeData.id, playerData);
+                    updatePlayerList();
+                }
+            });
+            
+            // When a player toggles headlights
+            socket.on('headlightsToggled', function(data) {
+                if (otherPlayers[data.id] && otherPlayersHeadlights[data.id]) {
+                    // Toggle the visibility of the other player's headlights
+                    otherPlayersHeadlights[data.id].forEach(light => {
+                        light.visible = data.headlightsOn;
+                    });
+                }
+            });
+            
+            // When a player leaves
+            socket.on('playerLeft', function(id) {
+                if (otherPlayers[id]) {
+                    // Remove their car
+                    scene.remove(otherPlayers[id]);
+                    delete otherPlayers[id];
+                    
+                    // Clean up headlights
+                    if (otherPlayersHeadlights[id]) {
+                        delete otherPlayersHeadlights[id];
+                    }
+                    
+                    // Remove their data
+                    delete otherPlayersData[id];
+                    
+                    // Remove their name label
+                    if (nameLabels[id]) {
+                        document.body.removeChild(nameLabels[id]);
+                        delete nameLabels[id];
+                    }
+                    
+                    updatePlayerList();
+                }
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('Disconnected from server');
+                
+                // Clear other players
+                Object.keys(otherPlayers).forEach(id => {
+                    scene.remove(otherPlayers[id]);
+                    
+                    // Clean up headlights
+                    if (otherPlayersHeadlights[id]) {
+                        delete otherPlayersHeadlights[id];
+                    }
+                    
+                    if (nameLabels[id]) {
+                        document.body.removeChild(nameLabels[id]);
+                    }
+                });
+                
+                otherPlayers = {};
+                otherPlayersData = {};
+                nameLabels = {};
+                otherPlayersHeadlights = {};
+                
+                updatePlayerList();
+                
+                // Show connection screen again so user can reconnect
+                document.getElementById('connection-screen').style.display = 'flex';
+            });
+        }
+
+        function joinGame() {
+            // Get the currently selected vehicle
+            const selectElement = document.getElementById('vehicle-select');
+            const vehicleId = selectElement.value;
+            
+            // Join as a player with the selected vehicle
+            socket.emit('playerJoin', {
+                vehicleId: vehicleId,
+                position: { x: currentCar.position.x, y: currentCar.position.y, z: currentCar.position.z },
+                rotation: { y: currentCar.rotation.y },
+                playerName: playerName
+            });
+        }
+
+        function addOtherPlayer(playerInfo) {
+            // Store player data
+            otherPlayersData[playerInfo.id] = playerInfo;
+            
+            // Load their car
+            loadOtherPlayerCar(playerInfo.id, playerInfo);
+            
+            // Create name label
+            createNameLabel(playerInfo.id, playerInfo.playerName);
+        }
+
+        function loadOtherPlayerCar(playerId, playerInfo) {
+            const vehicle = vehiclesData.find(v => v.id === playerInfo.vehicleId);
+            
+            if (!vehicle) {
+                console.error('Could not find vehicle:', playerInfo.vehicleId);
+                return;
+            }
+            
+            loader.load(
+                'models/' + vehicle.file,
+                (gltf) => {
+                    const car = gltf.scene;
+                    
+                    // Position at player's location
+                    car.position.set(
+                        playerInfo.position.x,
+                        playerInfo.position.y,
+                        playerInfo.position.z
+                    );
+                    
+                    car.rotation.y = playerInfo.rotation.y;
+                    
+                    // Store reference to this player's car
+                    otherPlayers[playerId] = car;
+                    
+                    // Add the car to the scene
+                    scene.add(car);
+                    
+                    // Add headlights to other player's car (with player ID)
+                    addHeadlightsToOtherPlayer(car, playerId);
+                    
+                    // Update the name label
+                    updateNameLabel(playerId);
+                },
+                undefined,
+                (error) => {
+                    console.error('Error loading other player model:', error);
+                }
+            );
+        }
+
+        // Function to add headlights to other players' cars
+        function addHeadlightsToOtherPlayer(car, playerId) {
+            // Create array to store this player's headlights
+            otherPlayersHeadlights[playerId] = [];
+            
+            // Get player data
+            const playerData = otherPlayersData[playerId];
+            const initialHeadlightState = playerData.headlightsOn !== undefined ? playerData.headlightsOn : true;
+            
+            // Create headlight parameters - similar to the player's headlights but less intense
+            const headlightColor = 0xffffcc; // Warm white color
+            const headlightIntensity = 4; // Reduced intensity for other players
+            const headlightDistance = 50; // Reduced distance for other players
+            const headlightAngle = Math.PI / 6;
+            const headlightPenumbra = 0.3;
+            const headlightDecay = 1.5;
+            
+            // Adjustable headlight position parameters
+            const headlightOffsetX = 0.275;  // Distance from center (left/right)
+            const headlightOffsetY = 0.39;   // Height from car
+            const headlightOffsetZ = 1.2;    // Forward position from car center
+            const headlightTargetZ = 50;     // How far forward the light points
+            
+            // Create left headlight
+            const leftHeadlight = new THREE.SpotLight(
+                headlightColor, 
+                headlightIntensity,
+                headlightDistance,
+                headlightAngle,
+                headlightPenumbra,
+                headlightDecay
+            );
+            
+            // Position left headlight relative to car
+            leftHeadlight.position.set(headlightOffsetX, headlightOffsetY, headlightOffsetZ);
+            leftHeadlight.castShadow = false; // Disable shadow casting for performance
+            car.add(leftHeadlight);
+            leftHeadlight.target.position.set(0, 0, headlightTargetZ); // Point forward
+            car.add(leftHeadlight.target);
+            
+            // Create right headlight
+            const rightHeadlight = new THREE.SpotLight(
+                headlightColor, 
+                headlightIntensity,
+                headlightDistance,
+                headlightAngle,
+                headlightPenumbra,
+                headlightDecay
+            );
+            
+            // Position right headlight relative to car
+            rightHeadlight.position.set(-headlightOffsetX, headlightOffsetY, headlightOffsetZ);
+            rightHeadlight.castShadow = false; // Disable shadow casting for performance
+            car.add(rightHeadlight);
+            rightHeadlight.target.position.set(0, 0, headlightTargetZ); // Point forward
+            car.add(rightHeadlight.target);
+            
+            // Store headlights for cleanup later
+            otherPlayersHeadlights[playerId].push(leftHeadlight, rightHeadlight);
+            
+            // Add visible headlight objects
+            const headlightGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const headlightMaterial = new THREE.MeshBasicMaterial({ 
+                color: headlightColor, 
+                emissive: headlightColor,
+                emissiveIntensity: 2
+            });
+            
+            const leftHeadlightMesh = new THREE.Mesh(headlightGeometry, headlightMaterial);
+            leftHeadlightMesh.position.copy(leftHeadlight.position);
+            car.add(leftHeadlightMesh);
+            
+            const rightHeadlightMesh = new THREE.Mesh(headlightGeometry, headlightMaterial);
+            rightHeadlightMesh.position.copy(rightHeadlight.position);
+            car.add(rightHeadlightMesh);
+            
+            // Set initial visibility based on player's headlight state
+            leftHeadlight.visible = initialHeadlightState;
+            rightHeadlight.visible = initialHeadlightState;
+        }
+
+        function createNameLabel(playerId, name) {
+            const label = document.createElement('div');
+            label.className = 'player-name';
+            label.textContent = name;
+            document.body.appendChild(label);
+            
+            nameLabels[playerId] = label;
+            
+            // Position the label
+            updateNameLabel(playerId);
+        }
+
+        function updateNameLabel(playerId) {
+            if (!nameLabels[playerId] || !otherPlayers[playerId]) return;
+            
+            // Get screen position for the player's car
+            const position = new THREE.Vector3();
+            position.setFromMatrixPosition(otherPlayers[playerId].matrixWorld);
+            position.y += 1.5; // Position above the car
+            
+            // Convert 3D position to screen coordinates
+            const screenPosition = position.clone();
+            screenPosition.project(camera);
+            
+            // Convert to CSS coordinates
+            const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-(screenPosition.y * 0.5) + 0.5) * window.innerHeight;
+            
+            // Update label position
+            nameLabels[playerId].style.left = x + 'px';
+            nameLabels[playerId].style.top = y + 'px';
+            
+            // Only show if in front of camera
+            if (screenPosition.z > 1) {
+                nameLabels[playerId].style.display = 'none';
+            } else {
+                nameLabels[playerId].style.display = 'block';
+            }
+        }
+
+        function updatePlayerList() {
+            const playerListElement = document.getElementById('player-list');
+            const playerCount = document.getElementById('player-count');
+            
+            // Clear current list
+            playerListElement.innerHTML = '';
+            
+            // Add self
+            const selfItem = document.createElement('div');
+            selfItem.className = 'player-item';
+            selfItem.textContent = playerName + ' (You)';
+            playerListElement.appendChild(selfItem);
+            
+            // Add other players
+            Object.keys(otherPlayersData).forEach(id => {
+                const playerData = otherPlayersData[id];
+                const playerItem = document.createElement('div');
+                playerItem.className = 'player-item';
+                playerItem.textContent = playerData.playerName;
+                playerListElement.appendChild(playerItem);
+            });
+            
+            // Update count
+            const count = 1 + Object.keys(otherPlayersData).length;
+            playerCount.textContent = count;
+        }
+
+        // Load vehicles data
+        fetch('vehicles.json')
+            .then(response => response.json())
+            .then(data => {
+                vehiclesData = data.vehicles;
+                const selectElement = document.getElementById('vehicle-select');
+                
+                // Clear loading option
+                selectElement.innerHTML = '';
+                
+                // Add options for each vehicle
+                vehiclesData.forEach(vehicle => {
+                    const option = document.createElement('option');
+                    option.value = vehicle.id;
+                    option.textContent = vehicle.name;
+                    selectElement.appendChild(option);
+                });
+                
+                // Load the first vehicle by default
+                if (vehiclesData.length > 0) {
+                    selectElement.value = vehiclesData[0].id;
+                    updateVehicleStats(vehiclesData[0]);
+                    loadCar(vehiclesData[0].file);
+                }
+                
+                // Join game if socket is already connected
+                if (socket && socket.connected) {
+                    joinGame();
+                }
+            })
+            .catch(error => console.error('Error loading vehicles data:', error));
+
+        // Initialize Scene, Camera, and Renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.2, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; // Enable shadows
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+        document.body.appendChild(renderer.domElement);
+        
+        // Set background color darker for better light contrast
+        scene.background = new THREE.Color(0x222222);
+
+        // Create Ground (Open Field)
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2a6e2a, // Darker green for grass
+            roughness: 0.8,
+            metalness: 0.1
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2; // Make it horizontal
+        ground.receiveShadow = true; // Allow ground to receive shadows
+        scene.add(ground);
+
+        // Create a flat race track with 7 turns
+        function createFlatRaceTrack() {
+            // Track points for a race track with 7 turns
+            const trackPath = [
+                [-25, -25], // Start point
+                [25, -25],  // Straight section
+                [30, -15],  // Turn 1
+                [15, -5],   // Turn 2
+                [20, 15],   // Turn 3
+                [0, 25],    // Turn 4
+                [-20, 15],  // Turn 5
+                [-30, -5],  // Turn 6
+                [-25, -25]  // Turn 7 and back to start
+            ];
+            
+            // Create smooth curve from control points
+            const curvePoints = [];
+            trackPath.forEach(point => {
+                curvePoints.push(new THREE.Vector3(point[0], 0, point[1]));
+            });
+            
+            // Create a closed curve that passes through all points
+            const curve = new THREE.CatmullRomCurve3(curvePoints);
+            curve.closed = true;
+            
+            // Track properties
+            const trackWidth = 10;
+            const trackColor = 0x212121; // Dark gray
+            
+            // Create vertices for a flat ribbon following the curve
+            const numPoints = 200;
+            const points = curve.getPoints(numPoints);
+            const trackGeometry = new THREE.BufferGeometry();
+            
+            // Create vertices for both sides of the track
+            const vertices = [];
+            const normals = [];
+            const indices = [];
+            const uvs = []; // Add UVs for better material rendering
+            
+            // For each point along the curve
+            for (let i = 0; i <= numPoints; i++) {
+                const index = i % numPoints; // For closed loop
+                const nextIndex = (i + 1) % numPoints;
+                
+                const currentPoint = points[index];
+                const nextPoint = points[nextIndex];
+                
+                // Calculate the direction vector
+                const direction = new THREE.Vector3();
+                direction.subVectors(nextPoint, currentPoint).normalize();
+                
+                // Calculate the perpendicular vector on the horizontal plane
+                const perpendicular = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
+                
+                // Create left and right vertices for the track
+                const leftPoint = new THREE.Vector3().copy(currentPoint).addScaledVector(perpendicular, trackWidth/2);
+                const rightPoint = new THREE.Vector3().copy(currentPoint).addScaledVector(perpendicular, -trackWidth/2);
+                
+                // Add vertices - keeping them flat by maintaining the same y value
+                vertices.push(leftPoint.x, 0.01, leftPoint.z);  // Left side of track
+                vertices.push(rightPoint.x, 0.01, rightPoint.z); // Right side of track
+                
+                // Add normals (pointing up)
+                normals.push(0, 1, 0, 0, 1, 0);
+                
+                // Add UVs for texturing - map U along track length and V across width
+                const uCoord = i / numPoints;
+                uvs.push(uCoord, 0);
+                uvs.push(uCoord, 1);
+                
+                // Create triangles (two per track segment)
+                if (i < numPoints) {
+                    const vertIndex = i * 2;
+                    indices.push(vertIndex, vertIndex + 1, vertIndex + 2); // First triangle
+                    indices.push(vertIndex + 1, vertIndex + 3, vertIndex + 2); // Second triangle
+                }
+            }
+            
+            // Set geometry attributes
+            trackGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            trackGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+            trackGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); // Add UVs
+            trackGeometry.setIndex(indices);
+            trackGeometry.computeBoundingSphere();
+            
+            // Create track material that responds to light like the ground
+            const trackMaterial = new THREE.MeshStandardMaterial({
+                color: trackColor,
+                roughness: 2,           // Match ground roughness
+                metalness: 0.1,           // Match ground metalness
+                emissive: 0x000000,       // No self-illumination
+                side: THREE.DoubleSide,
+                flatShading: true        // Use smooth shading instead of flat shading
+            });
+            
+            // Create the track mesh - flat on the ground
+            const track = new THREE.Mesh(trackGeometry, trackMaterial);
+            track.receiveShadow = true;   // Allow track to receive shadows
+            
+            // Ensure the track is slightly above the ground to prevent z-fighting
+            track.position.y = 0.02;
+            
+            scene.add(track);
+            
+            // For visualization of the curve (optional)
+            // const curveGeometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(200));
+            // const curveMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            // const curveObject = new THREE.Line(curveGeometry, curveMaterial);
+            // scene.add(curveObject);
+            
+            return {
+                startPoint: new THREE.Vector3(trackPath[0][0], 0.1, trackPath[0][1])
+            };
+        }
+        
+        // Create the track
+        const raceTrack = createFlatRaceTrack();
+
+        // Add Lighting
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.85); // Reduced intensity for better headlight effect
+        directionalLight.position.set(1, 1, 1).normalize();
+        scene.add(directionalLight);
+        const ambientLight = new THREE.AmbientLight(0x202020, 0.8); // Darker ambient for better headlight contrast
+        scene.add(ambientLight);
+
+        // Car Management
+        let currentCar = null;
+        let headlights = []; // Array to store headlight objects
+        const loader = new THREE.GLTFLoader();
+
+        function loadCar(modelFile) {
+            // Find the vehicle data
+            const vehicle = vehiclesData.find(v => v.file === modelFile);
+            if (vehicle) {
+                currentVehicleData = vehicle;
+                updateVehicleStats(vehicle);
+                
+                // If socket is connected, notify about vehicle change
+                if (socket && socket.connected) {
+                    socket.emit('vehicleChange', { vehicleId: vehicle.id });
+                }
+            }
+            
+            // Remove previous car and its headlights
+            if (currentCar) {
+                scene.remove(currentCar);
+                headlights.forEach(light => scene.remove(light));
+                headlights = [];
+            }
+            
+            loader.load(
+                'models/' + modelFile,
+                (gltf) => {
+                    currentCar = gltf.scene;
+                    // Position car at the start of the track
+                    currentCar.position.copy(raceTrack.startPoint);
+                    currentCar.rotation.y = Math.PI; // Rotate 180 degrees to face the correct direction
+                    scene.add(currentCar);
+                    
+                    // Add headlights to the car
+                    addHeadlights();
+                    
+                    // If socket is connected, join game or update position
+                    if (socket && socket.connected) {
+                        if (!playerID) {
+                            joinGame();
+                        } else {
+                            emitPlayerMovement();
+                        }
+                    }
+                },
+                undefined,
+                (error) => {
+                    console.error('Error loading model:', error);
+                }
+            );
+        }
+        
+        // Function to add headlights to the car
+        function addHeadlights() {
+            // Create headlight parameters
+            const headlightColor = 0xffffcc; // Warm white color
+            const headlightIntensity = 8; // Increased intensity
+            const headlightDistance = 100; // Increased distance
+            const headlightAngle = Math.PI / 6; // Narrower cone (30 degrees instead of 36)
+            const headlightPenumbra = 0.3; // Softer edge
+            const headlightDecay = 1.5;
+            
+            // Adjustable headlight position parameters
+            const headlightOffsetX = 0.275;  // Distance from center (left/right)
+            const headlightOffsetY = 0.39;  // Height from car
+            const headlightOffsetZ = 1.2;    // Forward position from car center
+            const headlightTargetZ = 100;   // How far forward the light points
+            
+            // Create left headlight
+            const leftHeadlight = new THREE.SpotLight(
+                headlightColor, 
+                headlightIntensity,
+                headlightDistance,
+                headlightAngle,
+                headlightPenumbra,
+                headlightDecay
+            );
+            
+            // Position left headlight relative to car
+            leftHeadlight.position.set(headlightOffsetX, headlightOffsetY, headlightOffsetZ);
+            leftHeadlight.castShadow = true; // Enable shadow casting
+            currentCar.add(leftHeadlight);
+            leftHeadlight.target.position.set(0, 0, headlightTargetZ); // Point forward
+            currentCar.add(leftHeadlight.target);
+            
+            // Create right headlight
+            const rightHeadlight = new THREE.SpotLight(
+                headlightColor, 
+                headlightIntensity,
+                headlightDistance,
+                headlightAngle,
+                headlightPenumbra,
+                headlightDecay
+            );
+            
+            // Position right headlight relative to car
+            rightHeadlight.position.set(-headlightOffsetX, headlightOffsetY, headlightOffsetZ);
+            rightHeadlight.castShadow = true; // Enable shadow casting
+            currentCar.add(rightHeadlight);
+            rightHeadlight.target.position.set(0, 0, headlightTargetZ); // Point forward
+            currentCar.add(rightHeadlight.target);
+            
+            // Store headlights for later reference
+            headlights.push(leftHeadlight, rightHeadlight);
+            
+            // Add visible headlight objects (optional)
+            const headlightGeometry = new THREE.SphereGeometry(0.2, 16, 16); // Smaller spheres (0.3 → 0.2)
+            const headlightMaterial = new THREE.MeshBasicMaterial({ 
+                color: headlightColor, 
+                emissive: headlightColor,
+                emissiveIntensity: 2 // Brighter glow
+            });
+            
+            const leftHeadlightMesh = new THREE.Mesh(headlightGeometry, headlightMaterial);
+            leftHeadlightMesh.position.copy(leftHeadlight.position);
+            currentCar.add(leftHeadlightMesh);
+            
+            const rightHeadlightMesh = new THREE.Mesh(headlightGeometry, headlightMaterial);
+            rightHeadlightMesh.position.copy(rightHeadlight.position);
+            currentCar.add(rightHeadlightMesh);
+        }
+
+        // Function to update vehicle stats display
+        function updateVehicleStats(vehicle) {
+            // Update stat bars
+            document.getElementById('speed-bar').style.width = (vehicle.speed * 10) + '%';
+            document.getElementById('handling-bar').style.width = (vehicle.handling * 10) + '%';
+            document.getElementById('acceleration-bar').style.width = (vehicle.acceleration * 10) + '%';
+            document.getElementById('shield-bar').style.width = (vehicle.shield * 10) + '%';
+            
+            // Update description
+            document.getElementById('description').textContent = vehicle.description;
+        }
+
+        // Listen for vehicle selection changes
+        document.getElementById('vehicle-select').addEventListener('change', function(e) {
+            const selectedId = e.target.value;
+            const selectedVehicle = vehiclesData.find(vehicle => vehicle.id === selectedId);
+            if (selectedVehicle) {
+                loadCar(selectedVehicle.file);
+            }
+        });
+
+        // Keyboard Controls
+        const keys = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false,
+            w: false,
+            a: false,
+            s: false,
+            d: false
+        };
+
+        window.addEventListener('keydown', (event) => {
+            if (event.key in keys) {
+                keys[event.key] = true;
+            }
+            
+            // Toggle headlights with spacebar
+            if (event.code === 'Space') {
+                toggleHeadlights();
+            }
+        });
+
+        window.addEventListener('keyup', (event) => {
+            if (event.key in keys) {
+                keys[event.key] = false;
+            }
+        });
+
+        // Movement Parameters
+        let carSpeed = 10; // Units per second 
+        let turnSpeed = Math.PI; // Radians per second
+        const clock = new THREE.Clock();
+        
+        // Synchronization time tracking
+        let lastUpdateTime = 0;
+        const updateInterval = 100; // Send updates every 100ms
+
+        // Emit player movement to server
+        function emitPlayerMovement() {
+            if (!socket || !socket.connected || !currentCar) return;
+            
+            socket.emit('playerMovement', {
+                position: {
+                    x: currentCar.position.x,
+                    y: currentCar.position.y,
+                    z: currentCar.position.z
+                },
+                rotation: {
+                    y: currentCar.rotation.y
+                }
+            });
+        }
+
+        // Update Function
+        function update(delta) {
+            if (currentCar && currentVehicleData) {
+                // Apply vehicle-specific characteristics
+                carSpeed = currentVehicleData.speed;
+                turnSpeed = currentVehicleData.handling * 0.3; // Adjust for reasonable turning
+
+                const acceleration = currentVehicleData.acceleration * 0.1; // Acceleration factor
+                
+                let hasMoved = false;
+                
+                // Forward movement with either W or ArrowUp
+                if (keys.ArrowUp || keys.w) {
+                    currentCar.translateZ(carSpeed * acceleration * delta); // Move forward with acceleration
+                    hasMoved = true;
+                }
+                // Backward movement with either S or ArrowDown
+                if (keys.ArrowDown || keys.s) {
+                    currentCar.translateZ(-carSpeed * 0.7 * delta); // Move backward (usually slower than forward)
+                    hasMoved = true;
+                }
+                // Left turn with either A or ArrowLeft
+                if (keys.ArrowLeft || keys.a) {
+                    currentCar.rotation.y += turnSpeed * delta; // Turn left
+                    hasMoved = true;
+                }
+                // Right turn with either D or ArrowRight
+                if (keys.ArrowRight || keys.d) {
+                    currentCar.rotation.y -= turnSpeed * delta; // Turn right
+                    hasMoved = true;
+                }
+
+                // Send movement updates at a controlled rate
+                if (hasMoved && socket && socket.connected) {
+                    const currentTime = Date.now();
+                    if (currentTime - lastUpdateTime > updateInterval) {
+                        emitPlayerMovement();
+                        lastUpdateTime = currentTime;
+                    }
+                }
+
+                // Update camera to follow the car
+                const cameraOffset = new THREE.Vector3(0, 15, -20); // Position camera above and behind car
+                const cameraPosition = new THREE.Vector3().copy(currentCar.position).add(cameraOffset);
+                camera.position.lerp(cameraPosition, 0.1); // Smooth camera movement
+                camera.lookAt(currentCar.position.x, 0, currentCar.position.z); // Look at car
+            }
+            
+            // Update other players (interpolate movement)
+            for (const id in otherPlayers) {
+                const player = otherPlayers[id];
+                
+                if (player.targetPosition) {
+                    // Interpolate position for smooth movement
+                    player.position.lerp(player.targetPosition, 0.1);
+                    
+                    // Interpolate rotation
+                    if (player.targetRotation) {
+                        // Find shortest path for rotation
+                        let targetY = player.targetRotation.y;
+                        let currentY = player.rotation.y;
+                        
+                        // Calculate the difference
+                        let diff = targetY - currentY;
+                        
+                        // Normalize to [-PI, PI]
+                        if (diff > Math.PI) diff -= 2 * Math.PI;
+                        if (diff < -Math.PI) diff += 2 * Math.PI;
+                        
+                        // Apply a portion of the rotation
+                        player.rotation.y += diff * 0.1;
+                    }
+                    
+                    // Update name label position
+                    updateNameLabel(id);
+                }
+            }
+        }
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            update(delta);
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+        // Function to toggle headlights
+        function toggleHeadlights() {
+            // Toggle state
+            headlightsOn = !headlightsOn;
+            
+            // Toggle player's headlights
+            if (headlights.length > 0) {
+                headlights.forEach(light => {
+                    light.visible = headlightsOn;
+                });
+            }
+            
+            // Notify server about headlight state change
+            if (socket && socket.connected) {
+                socket.emit('headlightsToggle', { headlightsOn });
+            }
+        }
+    </script>
+</body>
+</html>

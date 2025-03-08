@@ -818,8 +818,14 @@ class GameEngine {
             if (this.canResetCar) {
                 const isOnTrack = this.isCarOnTrack(car);
                 
-                if (!isOnTrack) {
-                    // Car is off track - start or continue the timer
+                // Check if near the start line - never auto-reset in this area
+                const isNearStartLine = 
+                    car.position.z < -40 && car.position.z > -80 && 
+                    car.position.x > -70 && car.position.x < 70;
+                
+                // Skip off-track checks entirely if near start line
+                if (!isOnTrack && !isNearStartLine) {
+                    // Car is off track (and not near start) - start or continue the timer
                     if (this.offTrackStartTime === null) {
                         // First time off track - start the timer
                         this.offTrackStartTime = Date.now();
@@ -828,7 +834,7 @@ class GameEngine {
                         // Already off track - check the timer
                         const offTrackDuration = Date.now() - this.offTrackStartTime;
                         
-                        // If off track for more than 1 second, reset car
+                        // If off track for more than 1 second and not near start, reset car
                         if (offTrackDuration > 1000) {
                             console.log("Car off track for 1+ second, resetting to start");
                             this.resetCarToStart(car);
@@ -838,9 +844,9 @@ class GameEngine {
                         }
                     }
                 } else {
-                    // Car is back on track - reset the timer
+                    // Car is back on track or near start - reset the timer
                     if (this.offTrackStartTime !== null) {
-                        console.log("Car back on track, timer reset");
+                        console.log("Car back on track/near start, timer reset");
                         this.offTrackStartTime = null;
                     }
                 }
@@ -1053,17 +1059,17 @@ class GameEngine {
         // Rotate 90 degrees CCW to face along the track (toward the first turn)
         car.rotation.set(0, Math.PI/2, 0);
         
-        // Disable track checking for a longer time (3 seconds) to prevent restart loops
+        // Disable track checking for a much longer time (5 seconds) to prevent any reset loops
         this.canResetCar = false;
         console.log("Car reset - disabling off-track detection temporarily");
+        
+        // Clear the off-track timer immediately
+        this.offTrackStartTime = null;
         
         setTimeout(() => {
             this.canResetCar = true;
             console.log("Off-track detection re-enabled after reset");
-        }, 3000);
-        
-        // Clear the off-track timer immediately to prevent loop
-        this.offTrackStartTime = null;
+        }, 5000); // 5 second cooldown
         
         // Visual feedback
         this.showResetEffect();
@@ -1096,6 +1102,20 @@ class GameEngine {
     
     // Check if the car is on the track
     isCarOnTrack(car) {
+        // First check if near start line - always considered on track
+        const carPosition = new THREE.Vector3(car.position.x, 0.1, car.position.z);
+        
+        // Check if car is near the start position (wider area to ensure no false positives)
+        const isNearStartLine = 
+            carPosition.z < -40 && carPosition.z > -80 && 
+            carPosition.x > -70 && carPosition.x < 70;
+            
+        // Always consider on track when near start line
+        if (isNearStartLine) {
+            return true;
+        }
+        
+        // For all other positions, do normal track detection
         // Track points with zero elevation
         const trackPath = [
             [-60, 0.1, -60],     // Start point
@@ -1128,8 +1148,8 @@ class GameEngine {
         const maxDistanceFromTrack = trackWidth/2 + trackMargin;
         
         // Get closest point on track to car
-        const carPosition = new THREE.Vector3(car.position.x, 0.1, car.position.z);
         let minDistance = Infinity;
+        let minDistanceIndex = 0;
         const numSamples = 100;
         
         for (let i = 0; i < numSamples; i++) {
@@ -1138,10 +1158,21 @@ class GameEngine {
             const distance = carPosition.distanceTo(pointOnCurve);
             if (distance < minDistance) {
                 minDistance = distance;
+                minDistanceIndex = i;
             }
         }
         
-        // Return true if on track, false if off-track
+        // Special handling for start/finish line area (extra wide)
+        // Points near beginning or end of the curve (close to start/finish)
+        const isNearStartFinish = (minDistanceIndex < 5) || (minDistanceIndex > numSamples - 5);
+        
+        // If near start/finish curve points, use a wider margin
+        if (isNearStartFinish) {
+            const widerMargin = trackWidth/2 + 3.0; // Extra wide margin at start/finish
+            return minDistance <= widerMargin;
+        }
+        
+        // Regular track area
         return minDistance <= maxDistanceFromTrack;
     }
 }

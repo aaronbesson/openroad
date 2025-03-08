@@ -1,15 +1,33 @@
-# Open Source Multiplayer Car Driving Game
+# OpenRoad - Multiplayer 3D Driving Game
 
-A 3D multiplayer car driving game where players can join the same scene, drive around a race track, and interact with each other in real-time.
+A real-time multiplayer car driving and racing game where players can join the same world, drive various vehicles, collect items, and interact with each other.
 
 ## Features
 
-- Multiplayer gameplay with real-time synchronization
-- Multiple vehicle types with different characteristics
-- Player name display and connection status
-- Modern 3D graphics with Three.js
-- Race track with curves and paths
-- Vehicle headlights and dynamic lighting
+- **Multiplayer System**
+  - Real-time player synchronization via Socket.io
+  - Player name displays and connection status
+  - In-game player list showing all active drivers
+
+- **Vehicle System**
+  - Multiple vehicle types with unique characteristics
+  - Vehicle stats: Speed, Handling, Acceleration, Shield
+  - Vehicle selection with 3D preview
+  - Special vehicles including aircraft with flying controls
+
+- **Gameplay Features**
+  - Collectible coins system with different point values
+  - Shield/health system with heart power-ups
+  - Vehicle collision detection and physics
+  - Headlights toggle and horn sound effects
+  - Dynamic race track with curves and elevation changes
+
+- **Graphics & Audio**
+  - Modern 3D graphics built with Three.js
+  - Responsive dynamic lighting system
+  - Custom 3D models for vehicles and objects
+  - In-game music player with soundtrack selection
+  - Sound effects for vehicle interactions
 
 ## Setup
 
@@ -35,33 +53,59 @@ Start the server:
 npm start
 ```
 
+For development with auto-restart:
+
+```bash
+npm run dev
+```
+
 The game will be available at http://localhost:3000
 
 ## How to Play
 
 1. Open the game URL in your browser
-2. Enter your name and click "Join Game"
-3. Select a vehicle from the dropdown menu
-4. Use the arrow keys to drive:
-   - Up Arrow: Accelerate
-   - Down Arrow: Reverse
-   - Left/Right Arrows: Turn left/right
+2. Enter your name and select a vehicle from the available options
+3. Click "Join Game" to start playing
 
-## Multiplayer Features
+### Standard Vehicle Controls
+- **W / Up Arrow**: Accelerate
+- **S / Down Arrow**: Brake/Reverse
+- **A / Left Arrow**: Turn left
+- **D / Right Arrow**: Turn right
+- **Space**: Toggle headlights
+- **H**: Sound horn
 
-- See other players in real-time
-- Player names are displayed above vehicles
-- Connected player list shows everyone in the game
-- Vehicle selection is synchronized between players
+### Aircraft Controls
+- **Q**: Fly up
+- **E**: Fly down
+- **R**: Pitch up (nose up)
+- **F**: Pitch down (nose down)
+- **Z**: Roll left (bank left)
+- **C**: Roll right (bank right)
+
+## Game Mechanics
+
+- **Coins System**: Collect coins scattered throughout the map
+  - Bronze coins: 10 points
+  - Silver coins: 25 points
+  - Gold coins: 50 points
+  - Jewels: 100 points
+  - Hearts: Restore shield protection
+
+- **Collision System**: Realistic vehicle collisions with physics effects
+- **Shield System**: Protects your vehicle from damage
+- **Real-Time Synchronization**: All game elements synchronized between players
 
 ## Technology Stack
 
 - **Frontend**: HTML, CSS, JavaScript, Three.js
 - **Backend**: Node.js, Express
 - **Real-time Communication**: Socket.io
+- **3D Models**: GLTF/GLB format
 
 ## Extending the Game
 
-- Add more vehicles by updating the vehicles.json file
-- Modify the track layout in the createFlatRaceTrack function
-- Add game mechanics like collisions, scoring, or racing functionality 
+- Add more vehicles by updating the `vehicles.json` file
+- Create new collectibles by modifying `coins.json`
+- Add game mechanics or features by extending the modular JavaScript architecture
+- Customize the track or environment in the `game.js` file 

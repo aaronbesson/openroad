@@ -69,7 +69,6 @@ canvas {
     font-size: 14px;
     transform: translateX(-50%);
     pointer-events: none;
-    width: 90%;
 }
 .multiplayer-info {
     margin-top: 15px;

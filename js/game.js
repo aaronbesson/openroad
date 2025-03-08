@@ -3,6 +3,7 @@
 import VehicleManager from './modules/vehicle.js';
 import CollectiblesManager from './modules/collectibles.js';
 import MultiplayerManager from './modules/multiplayer.js';
+import TrapsManager from './modules/traps.js';
 
 class GameEngine {
     constructor() {
@@ -20,9 +21,15 @@ class GameEngine {
         this.vehicleManager = new VehicleManager(this.scene, this.loader);
         this.collectiblesManager = new CollectiblesManager(this.scene, this.loader);
         this.multiplayerManager = new MultiplayerManager(this.scene, this.camera);
+        this.trapsManager = new TrapsManager(this.scene, this.loader);
         
         // Game state
         this.trees = [];
+        this.bombs = []; // Track active bombs
+        this.bombModel = null; // Will store the bomb model
+        this.bombCooldown = false; // Track if player is in bomb cooldown
+        this.bombCooldownTime = 3000; // 3 seconds cooldown between bombs
+        this.lastBombTime = 0; // Track when the last bomb was thrown
         this.controlsDisabled = false;
         this.controlsDisabledTimeout = null;
         this.startLinePosition = null; // Will store the start/finish line position
@@ -101,8 +108,14 @@ class GameEngine {
         // Load collectibles data
         await this.collectiblesManager.loadCollectiblesData();
         
+        // Load bomb model
+        await this.loadBombModel();
+        
         // Add random trees
         this.addRandomTrees();
+        
+        // Load and place trap spikes
+        this.trapsManager.loadAndPlaceTrapSpikes();
         
         // Start animation loop
         this.animate();
@@ -120,6 +133,9 @@ class GameEngine {
         // Keyboard controls - ensure these are bound to this instance
         window.addEventListener('keydown', this.onKeyDown.bind(this));
         window.addEventListener('keyup', this.onKeyUp.bind(this));
+        
+        // Mouse click for bomb throwing
+        this.renderer.domElement.addEventListener('click', this.onMouseClick.bind(this));
         
         // Custom events from other modules
         document.addEventListener('playHorn', this.playHorn.bind(this));
@@ -929,6 +945,9 @@ class GameEngine {
             
             // Check for collisions with collectibles
             this.collectiblesManager.checkCollisions(car);
+
+            // Check for collisions with trap spikes
+            this.trapsManager.checkCollisions(car);
         }
         
         // Update other players
@@ -1251,6 +1270,64 @@ class GameEngine {
         if (indicator) {
             indicator.style.display = 'none';
         }
+    }
+    
+    async loadBombModel() {
+        return new Promise((resolve, reject) => {
+            this.loader.load(
+                '/objects/bomb.glb',
+                (gltf) => {
+                    this.bombModel = gltf.scene;
+                    console.log('Bomb model loaded successfully');
+                    resolve();
+                },
+                undefined,
+                (error) => {
+                    console.error('Error loading bomb model:', error);
+                    reject(error);
+                }
+            );
+        });
+    }
+    
+    // Handle mouse click (for throwing bombs)
+    onMouseClick(event) {
+        // Only left mouse button (button 0)
+        if (event.button !== 0) return;
+        
+        // Don't throw if controls are disabled
+        if (this.controlsDisabled) return;
+        
+        // Throw bomb
+        this.throwBomb();
+    }
+    
+    // Throw bomb in direction car is facing
+    throwBomb() {
+        const carProperties = this.vehicleManager.getCarProperties();
+        const car = carProperties.car;
+        
+        if (!car || !this.bombModel) return;
+        
+        console.log('Throwing bomb');
+        
+        // Clone the bomb model
+        const bomb = this.bombModel.clone();
+        
+        // Make bomb bigger by scaling it
+        bomb.scale.set(2.5, 2.5, 2.5); // Increase size by 2.5x
+        
+        // Set initial position slightly in front of the car
+        const carDirection = new THREE.Vector3(0, 0, 1).applyQuaternion(car.quaternion);
+        const bombPosition = car.position.clone().add(carDirection.multiplyScalar(3));
+        bombPosition.y += 1; // Raise slightly above ground
+        bomb.position.copy(bombPosition);
+        
+        // Set initial rotation to match car
+        bomb.quaternion.copy(car.quaternion);
+        
+        // Add to scene
+        this.scene.add(bomb);
     }
 }
 

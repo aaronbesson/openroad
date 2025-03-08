@@ -274,19 +274,24 @@ class VehicleManager {
         return this.headlightsOn;
     }
     
-    // Function to generate a random spawn point
+    // Get a random spawn point on the map
     getRandomSpawnPoint() {
-        // Define bounds for spawning (keep within the track area)
-        const spawnBounds = {
-            minX: -30,
-            maxX: 30,
-            minZ: -30,
-            maxZ: 30
-        };
+        // Check if we have a specific start line position from the game
+        if (window.gameEngine && window.gameEngine.startLinePosition) {
+            // Use the start line position which is set in the GameEngine
+            return {
+                position: window.gameEngine.startLinePosition,
+                rotation: Math.PI / 2 // Car faces 90 degrees counter-clockwise (left) from the Z axis
+            };
+        }
         
-        // Generate random position within bounds
-        const randomX = spawnBounds.minX + Math.random() * (spawnBounds.maxX - spawnBounds.minX);
-        const randomZ = spawnBounds.minZ + Math.random() * (spawnBounds.maxZ - spawnBounds.minZ);
+        // Fallback to random position if no start line defined
+        const mapSize = 100;
+        const padding = 15;
+        
+        // Random position within the map boundaries
+        const randomX = (Math.random() * (mapSize - 2 * padding)) - (mapSize / 2 - padding);
+        const randomZ = (Math.random() * (mapSize - 2 * padding)) - (mapSize / 2 - padding);
         
         // Random rotation (facing any direction)
         const randomRotation = Math.random() * Math.PI * 2;
@@ -301,7 +306,7 @@ class VehicleManager {
     getCarProperties() {
         return {
             car: this.currentCar,
-            speed: this.currentVehicleData ? this.currentVehicleData.speed : 10,
+            speed: this.currentVehicleData ? this.currentVehicleData.speed * 2 : 10,
             handling: this.currentVehicleData ? this.currentVehicleData.handling * 0.3 : 0.3,
             acceleration: this.currentVehicleData ? this.currentVehicleData.acceleration * 0.1 : 0.1,
             shield: this.currentVehicleData ? this.currentVehicleData.shield : 0,

@@ -847,7 +847,7 @@
                 metalness: 0.1,           // Match ground metalness
                 emissive: 0x000000,       // No self-illumination
                 side: THREE.DoubleSide,
-                flatShading: false        // Use smooth shading instead of flat shading
+                flatShading: true        // Use smooth shading instead of flat shading
             });
             
             // Create the track mesh - flat on the ground
@@ -855,7 +855,7 @@
             track.receiveShadow = true;   // Allow track to receive shadows
             
             // Ensure the track is slightly above the ground to prevent z-fighting
-            track.position.y = 0.02;
+            track.position.y = 0.001;
             
             scene.add(track);
             
@@ -866,7 +866,7 @@
             // scene.add(curveObject);
             
             return {
-                startPoint: new THREE.Vector3(trackPath[0][0], 0.1, trackPath[0][1])
+                startPoint: new THREE.Vector3(trackPath[0][0], 0.01, trackPath[0][1])
             };
         }
         
@@ -879,8 +879,8 @@
             const spawnBounds = {
                 minX: -30,
                 maxX: 30,
-                minZ: -30,
-                maxZ: 30
+                minZ: -5,
+                maxZ: 3
             };
             
             const minDistanceFromOthers = 5; // Minimum distance from other players
@@ -1254,7 +1254,7 @@
         });
 
         // Movement Parameters
-        let carSpeed = 10; // Units per second 
+        let carSpeed = 20; // Units per second 
         let turnSpeed = Math.PI; // Radians per second
         const clock = new THREE.Clock();
         

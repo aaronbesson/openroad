@@ -6,9 +6,12 @@ import MultiplayerManager from './modules/multiplayer.js';
 
 class GameEngine {
     constructor() {
+        // Make this instance available globally for other modules
+        window.gameEngine = this;
+        
         // Initialize THREE.js components
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.2, 1000);
+        this.camera = new THREE.PerspectiveCamera(33, window.innerWidth / window.innerHeight, 0.2, 1000);
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.loader = new THREE.GLTFLoader();
         this.clock = new THREE.Clock();
@@ -22,6 +25,7 @@ class GameEngine {
         this.trees = [];
         this.controlsDisabled = false;
         this.controlsDisabledTimeout = null;
+        this.startLinePosition = null; // Will store the start/finish line position
         
         // Keyboard controls - moved from prototype to instance property for better initialization
         this.keys = {
@@ -193,26 +197,26 @@ class GameEngine {
         this.scene.add(skybox);
     }
     
-    // Create a flat race track with elevation
+    // Create a flat race track without elevation
     createRaceTrack() {
-        console.log('Creating race track with fixed elevation...');
+        console.log('Creating flat race track...');
         
-        // Track points with slightly higher elevation values
+        // Track points with zero elevation (y=0)
         const trackPath = [
-            [-60, 1, -60],     // Start point - raised
-            [60, 1, -60],      // Long straight section - raised
-            [80, 1, -40],      // Turn 1 - raised
-            [90, 2, -10],      // Turn 2 with slight elevation - raised
-            [80, 3, 20],       // Turn 3 climbing - raised
-            [60, 4, 40],       // Turn 4 climbing - raised
-            [20, 5, 60],       // Turn 5 highest point - raised
-            [-20, 4, 70],      // Turn 6 starting descent - raised
-            [-50, 3, 60],      // Turn 7 descending - raised
-            [-80, 2, 40],      // Turn 8 descending - raised
-            [-90, 1.5, 10],    // Turn 9 descending - raised
-            [-80, 1, -20],     // Turn 10 back to ground level - raised
-            [-70, 1, -40],     // Turn 11 - raised
-            [-60, 1, -60]      // Turn 12 and back to start - raised
+            [-60, 0.1, -60],     // Start point
+            [60, 0.1, -60],      // Long straight section
+            [80, 0.1, -40],      // Turn 1
+            [90, 0.1, -10],      // Turn 2
+            [80, 0.1, 20],       // Turn 3
+            [60, 0.1, 40],       // Turn 4
+            [20, 0.1, 60],       // Turn 5
+            [-20, 0.1, 70],      // Turn 6
+            [-50, 0.1, 60],      // Turn 7
+            [-80, 0.1, 40],      // Turn 8
+            [-90, 0.1, 10],      // Turn 9
+            [-80, 0.1, -20],     // Turn 10
+            [-70, 0.1, -40],     // Turn 11
+            [-60, 0.1, -60]      // Turn 12 and back to start
         ];
         
         // Create smooth curve from control points
@@ -226,7 +230,7 @@ class GameEngine {
         curve.closed = true;
         
         // Track properties
-        const trackWidth = 15;  // Wider track
+        const trackWidth = 8;  // Wider track
         const trackColor = 0x333333; // Dark gray
         
         // Create vertices for a ribbon following the curve, including elevation
@@ -295,7 +299,8 @@ class GameEngine {
             color: trackColor,
             roughness: 0.9,
             metalness: 0.2,
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
+            flatShading: true
         });
         
         // Create the track mesh
@@ -305,21 +310,137 @@ class GameEngine {
         
         this.scene.add(track);
         
-        // Return track info
+        // Add start/finish line
+        const startLinePosition = this.addStartFinishLine(trackPath[0], trackWidth, curve, points);
+        
+        // Return track info with updated start position
         return {
-            startPoint: new THREE.Vector3(trackPath[0][0], trackPath[0][1] + 0.5, trackPath[0][2]),
+            startPoint: startLinePosition, // Use the start line position for car spawning
             trackPath: trackPath,
             curve: curve
         };
     }
     
+    // Create a start/finish line at the specified track position
+    addStartFinishLine(startPoint, trackWidth, curve, trackPoints) {
+        // Find the track direction at the straight section
+        // We know from trackPath that the first straight section is between points [0] and [1]
+        const p1 = new THREE.Vector3(-63.5, 0.1, -63.5); // Start point
+        const p2 = new THREE.Vector3(63.5, 0.1, -63.5);  // End of long straight section
+        
+        // Calculate the middle of the straight section
+        const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+        
+        // Calculate track direction along the straight
+        const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
+        
+        // Calculate the right vector (perpendicular to direction and up)
+        const up = new THREE.Vector3(0, 1, 0);
+        const right = new THREE.Vector3().crossVectors(direction, up).normalize();
+        
+        // Create start/finish line dimensions
+        const width = 2; // Make it wider than the track
+        const length = 8; // Length of the start/finish line
+        const height = 0.03; // Slightly raised above the track
+        
+        // Create a plane for the start/finish line
+        const lineGeometry = new THREE.PlaneGeometry(width, length);
+        
+        // Create solid white material for the line
+        const lineMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFFFFFF,
+            side: THREE.DoubleSide,
+            roughness: 0.7,
+            metalness: 0.2
+        });
+        
+        // Create mesh
+        const line = new THREE.Mesh(lineGeometry, lineMaterial);
+        
+        // Position at the middle of the straight section
+        line.position.copy(midpoint);
+        line.position.y += height; // Raise slightly above track
+        
+        // Rotate to cross the track perpendicularly (90 degrees to track direction)
+        // This line should be perpendicular to the track direction
+        line.up = new THREE.Vector3(0, 1, 0);
+        
+        // First align with track direction
+        const lookTarget = new THREE.Vector3().copy(midpoint).add(direction);
+        line.lookAt(lookTarget);
+        
+        // Then rotate 90 degrees to be perpendicular to track
+        line.rotateY(Math.PI / 2);
+        
+        // Lay flat on the ground
+        line.rotateX(-Math.PI / 2);
+        
+        // Add to scene
+        line.castShadow = true;
+        line.receiveShadow = true;
+        this.scene.add(line);
+        
+        // Create START text using TextSprite (simpler than TextGeometry which requires font loading)
+        const startTextPosition = new THREE.Vector3().copy(midpoint);
+        startTextPosition.y += 5; // Position the text above the line
+        
+        // Create a canvas for the text
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 512;
+        canvas.height = 128;
+        
+        // Draw the text
+        context.fillStyle = '#000000';  // Black background
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.font = 'bold 72px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = '#FFFFFF';  // White text
+        context.fillText('START', canvas.width / 2, canvas.height / 2);
+        
+        // Create a texture from the canvas
+        const texture = new THREE.CanvasTexture(canvas);
+        
+        // Create a material using the texture
+        const textMaterial = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            side: THREE.DoubleSide
+        });
+        
+        // Create a plane for the text
+        const textGeometry = new THREE.PlaneGeometry(10, 2.5);  // Adjust size as needed
+        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+        
+        // Position the text
+        textMesh.position.copy(startTextPosition);
+        
+        // Rotate to face the approaching direction
+        textMesh.lookAt(new THREE.Vector3().copy(textMesh.position).add(new THREE.Vector3(1, 0, 0)));
+        
+        // Add to scene
+        this.scene.add(textMesh);
+        
+        // Save the start/finish line position to the game instance
+        this.startLinePosition = new THREE.Vector3(
+            midpoint.x, 
+            0.5,  // Slightly above the ground for the car
+            midpoint.z - 2 // Position the car a few units before the line, facing it
+        );
+        
+        // Return the position where the car should start
+        return this.startLinePosition;
+    }
+    
+
     // Setup lighting
     setupLighting() {
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.85);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.15);
         directionalLight.position.set(1, 1, 1).normalize();
         this.scene.add(directionalLight);
         
-        const ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.2);
         this.scene.add(ambientLight);
     }
     
@@ -345,7 +466,7 @@ class GameEngine {
         }
     }
     
-    // Add random trees for decoration
+    // Add random trees with improved placement
     addRandomTrees() {
         console.log('Adding simple trees to the scene...');
         
@@ -353,8 +474,8 @@ class GameEngine {
         this.trees = [];
         
         // Tree generation parameters
-        const treeCount = 30;
-        const minDistanceFromTrack = 20; // Keep trees well away from track
+        const treeCount = 120;
+        const minDistanceFromTrack = 50; // Keep trees further away from track
         const treePath = 'objects/tree.glb';
         
         // Function to check if position is too close to track
@@ -362,7 +483,7 @@ class GameEngine {
             // Simple check - approximate track area
             const trackCenterX = 0;
             const trackCenterZ = 0;
-            const trackRadius = 100; // Rough estimate of track area
+            const trackRadius = 120; // Larger track area to avoid intersections
             
             // Distance from track center
             const distanceFromCenter = Math.sqrt(
@@ -402,7 +523,7 @@ class GameEngine {
                     // Position tree on ground
                     tree.position.set(x, 0, z);
                     tree.scale.set(scale, scale, scale);
-                    tree.rotation.y = Math.random() * Math.PI * 2;
+                    tree.rotation.y = Math.random() * Math.PI * 3;
                     
                     this.scene.add(tree);
                     
@@ -656,21 +777,40 @@ class GameEngine {
                 }
             }
             
-            // If car moved, adjust its height to match track
-            if (hasMoved) {
-                this.adjustCarHeight(car);
-            }
+            // Always adjust car height, even when not moving
+            this.adjustCarHeight(car);
             
             // If car moved, send update to server
             if (hasMoved) {
                 this.multiplayerManager.emitPlayerMovement(car);
             }
             
-            // Update camera to follow the car
-            const cameraOffset = new THREE.Vector3(0, 15, -20); // Position camera above and behind car
+            // Improved camera with height offset
+            const cameraHeight = 15;
+            const cameraDistance = 20;
+            
+            // Position camera above and behind car
+            const cameraOffset = new THREE.Vector3(
+                0,
+                cameraHeight,
+                -cameraDistance
+            );
+            
+            // Calculate desired camera position based on car position and rotation
+            const cameraQuat = new THREE.Quaternion().copy(car.quaternion);
+            cameraOffset.applyQuaternion(cameraQuat);
             const cameraPosition = new THREE.Vector3().copy(car.position).add(cameraOffset);
-            this.camera.position.lerp(cameraPosition, 0.1); // Smooth camera movement
-            this.camera.lookAt(car.position.x, car.position.y, car.position.z); // Look at car
+            
+            // Apply camera position with slight smoothing
+            this.camera.position.lerp(cameraPosition, 0.1);
+            
+            // Look at car with slight height offset for better view
+            const lookAtPos = new THREE.Vector3(
+                car.position.x,
+                car.position.y + 1, // Look slightly above car
+                car.position.z
+            );
+            this.camera.lookAt(lookAtPos);
             
             // Check for collisions with objects
             this.checkTreeCollisions();
@@ -752,24 +892,24 @@ class GameEngine {
         this.collectiblesManager.markCollected(data.itemId, data.playerId);
     }
     
-    // New method to adjust car height based on track position
+    // Update with improved car height adjustment for smooth transitions
     adjustCarHeight(car) {
-        // Simplified track data with updated heights
+        // Updated track data with flattened elevation
         const trackPath = [
-            [-60, 1, -60],     // Start point - raised
-            [60, 1, -60],      // Long straight section - raised
-            [80, 1, -40],      // Turn 1 - raised
-            [90, 2, -10],      // Turn 2 with slight elevation - raised
-            [80, 3, 20],       // Turn 3 climbing - raised
-            [60, 4, 40],       // Turn 4 climbing - raised
-            [20, 5, 60],       // Turn 5 highest point - raised
-            [-20, 4, 70],      // Turn 6 starting descent - raised
-            [-50, 3, 60],      // Turn 7 descending - raised
-            [-80, 2, 40],      // Turn 8 descending - raised
-            [-90, 1.5, 10],    // Turn 9 descending - raised
-            [-80, 1, -20],     // Turn 10 back to ground level - raised
-            [-70, 1, -40],     // Turn 11 - raised
-            [-60, 1, -60]      // Turn 12 and back to start - raised
+            [-60, 0, -60],     // Start point
+            [60, 0, -60],      // Long straight section
+            [80, 0, -40],      // Turn 1
+            [90, 0, -10],      // Turn 2
+            [80, 0, 20],       // Turn 3
+            [60, 0, 40],       // Turn 4
+            [20, 0, 60],       // Turn 5
+            [-20, 0, 70],      // Turn 6
+            [-50, 0, 60],      // Turn 7
+            [-80, 0, 40],      // Turn 8
+            [-90, 0, 10],      // Turn 9
+            [-80, 0, -20],     // Turn 10
+            [-70, 0, -40],     // Turn 11
+            [-60, 0, -60]      // Turn 12 and back to start
         ];
         
         // Create a curve for interpolation
@@ -803,13 +943,30 @@ class GameEngine {
             }
         }
         
-        // Set car height based on closest track point
-        // 0.5 is an offset for the car's wheels/chassis
-        if (minDistance < 25) { // Only adjust height when close to track
-            car.position.y = closestY + 0.5;
+        // Default ground height 
+        const groundHeight = 1.0;
+        
+        // Create a smooth transition between track and ground
+        // Higher transition distance for smoother change
+        const transitionDistance = 30;
+        
+        let targetHeight;
+        
+        if (minDistance < transitionDistance) {
+            // Calculate blend factor (0 to 1) for smooth transition
+            const blendFactor = Math.max(0, minDistance / transitionDistance);
+            
+            // Blend between track height and ground height
+            // Significantly increased car offset to 2.0 to ensure headlights are above track
+            const trackHeight = closestY; // Higher track height with increased car offset
+            targetHeight = trackHeight * (1 - blendFactor) + groundHeight * blendFactor;
         } else {
-            car.position.y = 0.5; // Default height when off-track
+            // Off track - use ground height
+            targetHeight = groundHeight;
         }
+        
+        // Smooth the transition even more with lerp
+        car.position.y = car.position.y * 0.9 + targetHeight * 0.1;
     }
 }
 

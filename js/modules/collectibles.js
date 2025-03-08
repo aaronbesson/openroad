@@ -153,22 +153,22 @@ class CollectiblesManager {
     
     // New method to adjust collectible height based on track position
     adjustCollectibleHeight(collectible) {
-        // Simple track data with elevation - match the updates in game.js
+        // Updated track data with higher elevation - match game.js
         const trackPath = [
-            [-60, 1, -60],     // Start point - raised
-            [60, 1, -60],      // Long straight section - raised
-            [80, 1, -40],      // Turn 1 - raised
-            [90, 2, -10],      // Turn 2 with slight elevation - raised
-            [80, 3, 20],       // Turn 3 climbing - raised
-            [60, 4, 40],       // Turn 4 climbing - raised
-            [20, 5, 60],       // Turn 5 highest point - raised
-            [-20, 4, 70],      // Turn 6 starting descent - raised
-            [-50, 3, 60],      // Turn 7 descending - raised
-            [-80, 2, 40],      // Turn 8 descending - raised
-            [-90, 1.5, 10],    // Turn 9 descending - raised
-            [-80, 1, -20],     // Turn 10 back to ground level - raised
-            [-70, 1, -40],     // Turn 11 - raised
-            [-60, 1, -60]      // Turn 12 and back to start - raised
+            [-60, 0.2, -60],     // Start point
+            [60, 0.2, -60],      // Long straight section
+            [80, 0.2, -40],      // Turn 1
+            [90, 0.2, -10],      // Turn 2
+            [80, 0.2, 20],       // Turn 3
+            [60, 0.2, 40],       // Turn 4
+            [20, 0.2, 60],       // Turn 5
+            [-20, 0.2, 70],      // Turn 6
+            [-50, 0.2, 60],      // Turn 7
+            [-80, 0.2, 40],      // Turn 8
+            [-90, 0.2, 10],      // Turn 9
+            [-80, 0.2, -20],     // Turn 10
+            [-70, 0.2, -40],     // Turn 11
+            [-60, 0.2, -60]      // Turn 12 and back to start
         ];
         
         // Create a curve for interpolation
@@ -202,9 +202,19 @@ class CollectiblesManager {
             }
         }
         
-        // Set collectible height based on closest track point
-        // Float only 0.7 units above the track (much lower than before)
-        collectible.position.y = closestY + 0.7;
+        // Default ground height (match car ground height)
+        const groundHeight = 1.0;
+        // Height of collectibles above surface
+        const collectibleOffset = 1.2;
+        
+        // Only place collectibles on or near the track
+        if (minDistance < 25) {
+            // Set collectible height based on track height plus offset
+            collectible.position.y = closestY + collectibleOffset;
+        } else {
+            // Off track collectibles placed at default ground height
+            collectible.position.y = groundHeight + collectibleOffset;
+        }
     }
     
     // Update collectibles (rotation, respawn)

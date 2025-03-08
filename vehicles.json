@@ -4,7 +4,7 @@
       "id": "car",
       "name": "Standard Car",
       "file": "car.glb",
-      "speed": 10,
+      "speed": 20,
       "handling": 7,
       "acceleration": 6,
       "shield": 5,

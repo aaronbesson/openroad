@@ -21,7 +21,7 @@ class GameEngine {
         
         // Initialize THREE.js components
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, 0.2, 1000);
+        this.camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, 0.2, 5000);
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.loader = new THREE.GLTFLoader();
         this.clock = new THREE.Clock();
@@ -201,62 +201,54 @@ class GameEngine {
     
     // Add a skybox for better atmosphere
     addSkybox() {
-        const skyboxSize = 900;
-        const skyboxGeometry = new THREE.BoxGeometry(skyboxSize, skyboxSize, skyboxSize);
+        // Create a simple color gradient for the sky
+        const topColor = new THREE.Color(0x0077ff);  // Deeper blue at top
+        const bottomColor = new THREE.Color(0x88ccff); // Lighter blue at horizon
         
-        // Simple gradient skybox materials
-        const skyboxMaterials = [];
+        // Set the scene background to a gradient
+        const verticalOffset = 400; // Controls how high the gradient appears
         
-        // Sky color at top
-        const topColor = new THREE.Color(0x6699FF);
-        // Horizon color
-        const bottomColor = new THREE.Color(0xBBDDFF);
+        // Create a custom shader material for the skybox
+        const skyGeo = new THREE.SphereGeometry(2000, 32, 32); // Use sphere for seamless sky
         
-        // Create materials for each face with gradients
-        const directions = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
+        // Create a shader material with vertical gradient
+        const skyMat = new THREE.ShaderMaterial({
+            uniforms: {
+                topColor: { value: topColor },
+                bottomColor: { value: bottomColor },
+                offset: { value: verticalOffset },
+                exponent: { value: 0.8 }
+            },
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 topColor;
+                uniform vec3 bottomColor;
+                uniform float offset;
+                uniform float exponent;
+                varying vec3 vWorldPosition;
+                void main() {
+                    float h = normalize(vWorldPosition + offset).y;
+                    gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+                }
+            `,
+            side: THREE.BackSide,
+            fog: false
+        });
         
-        for (let i = 0; i < 6; i++) {
-            // Create canvas for this face
-            const canvas = document.createElement('canvas');
-            canvas.width = 1440;
-            canvas.height = 1440;
-            const context = canvas.getContext('2d');
-            
-            // Create gradient
-            let gradient;
-            
-            if (i === 2) { // top face (py)
-                gradient = context.createRadialGradient(
-                    256, 256, 0,
-                    256, 256, 512
-                );
-                gradient.addColorStop(0, topColor.getStyle());
-                gradient.addColorStop(1, bottomColor.getStyle());
-            } else if (i === 3) { // bottom face (ny)
-                context.fillStyle = '#2a6e2a'; // Ground color
-                context.fillRect(0, 0, 512, 512);
-                skyboxMaterials.push(new THREE.MeshBasicMaterial({
-                    map: new THREE.CanvasTexture(canvas),
-                    side: THREE.BackSide
-                }));
-                continue;
-            } else { // side faces
-                gradient = context.createLinearGradient(0, 0, 0, 512);
-                gradient.addColorStop(0, topColor.getStyle());
-                gradient.addColorStop(1, bottomColor.getStyle());
-            }
-            
-            context.fillStyle = gradient;
-            context.fillRect(0, 0, 512, 512);
-            
-            skyboxMaterials.push(new THREE.MeshBasicMaterial({
-                map: new THREE.CanvasTexture(canvas),
-                side: THREE.BackSide
-            }));
-        }
+        // Create and add the sky dome
+        const sky = new THREE.Mesh(skyGeo, skyMat);
+        this.scene.add(sky);
         
-        const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterials);
-        this.scene.add(skybox);
+        // Also set a fog effect that matches the horizon color
+        const fogColor = bottomColor.clone().lerp(topColor, 0.3);
+        this.scene.fog = new THREE.Fog(fogColor, 500, 3000);
     }
     
     // Create a flat race track without elevation
@@ -912,15 +904,20 @@ class GameEngine {
             // Only process controls if not disabled from a collision
             if (!this.controlsDisabled) {
                 if (isAirplane) {
-                    // Special flying controls for airplane
+                    // Airplane will always move forward automatically
+                    const autoMoveSpeed = currentCarSpeed * acceleration * delta * 0.5;
+                    car.translateZ(autoMoveSpeed);
+                    hasMoved = true;
                     
-                    // Forward/backward movement
+                    // Special flying controls for airplane (additional controls besides auto-movement)
+                    
+                    // Forward/backward movement (boost/slow down from auto speed)
                     if (this.keys.ArrowUp || this.keys.w) {
-                        car.translateZ(currentCarSpeed * acceleration * delta);
+                        car.translateZ(currentCarSpeed * acceleration * delta * 0.5); // Extra boost
                         hasMoved = true;
                     }
                     if (this.keys.ArrowDown || this.keys.s) {
-                        car.translateZ(-currentCarSpeed * 0.7 * delta);
+                        car.translateZ(-currentCarSpeed * 0.4 * delta); // Slow down but not fully stop
                         hasMoved = true;
                     }
                     
@@ -1083,6 +1080,11 @@ class GameEngine {
                 car.position.z
             );
             this.camera.lookAt(lookAtPos);
+            
+            // Update plane trails if the vehicle is an airplane
+            if (isAirplane) {
+                this.vehicleManager.updatePlaneTrails(delta);
+            }
             
             // Check for collisions - skip for airplane if it's high enough
             if (!isAirplane || car.position.y < 5) {

@@ -17,6 +17,9 @@ class VehicleManager {
         this.previewCar = null;
         this.previewAnimationId = null;
         
+        // Trail-related properties
+        this.planeTrails = []; // Store plane trail particle systems
+        
         // DOM Elements
         this.selectElement = document.getElementById('vehicle-select');
         this.speedBar = document.getElementById('speed-bar');
@@ -153,6 +156,9 @@ class VehicleManager {
                 }
             });
             this.headlights = [];
+            
+            // Remove any existing plane trails
+            this.removePlaneTrails();
         }
         
         // If no spawn point provided, generate a random one
@@ -187,6 +193,9 @@ class VehicleManager {
                     gltf.scene.rotation.y = - Math.PI / 2; // 180 degrees
                     
                     console.log("AIRPLANE LOADED - Applied rotation to model in container");
+                    
+                    // Add trails to the airplane
+                    this.addPlaneTrails(container);
                 } else {
                     // For normal vehicles
                     this.currentCar = gltf.scene;
@@ -524,6 +533,199 @@ class VehicleManager {
         this.previewCamera = null;
         this.previewRenderer = null;
         this.previewCar = null;
+    }
+    
+    // Add trails to airplane
+    addPlaneTrails(plane) {
+        // Create two trail particle systems (one for each wing)
+        const trailColors = [
+            new THREE.Color(0x00a0ff), // Blue trail
+            new THREE.Color(0xffffff)  // White trail
+        ];
+        
+        // Wing positions (relative to plane center)
+        const wingPositions = [
+            new THREE.Vector3(-2, 0, 0), // Left wing
+            new THREE.Vector3(2, 0, 0)   // Right wing
+        ];
+        
+        // Create trails for each wing
+        for (let i = 0; i < 2; i++) {
+            // Create a trail particle system
+            const trailGeometry = new THREE.BufferGeometry();
+            const particleCount = 150; // Increased particle count for denser trails
+            
+            // Arrays to store particle data
+            const positionArray = new Float32Array(particleCount * 3);
+            const colorArray = new Float32Array(particleCount * 3);
+            const sizeArray = new Float32Array(particleCount);
+            const opacityArray = new Float32Array(particleCount);
+            const timeArray = new Float32Array(particleCount);
+            
+            // Colors for particles (gradient effect)
+            const startColor = trailColors[i].clone();
+            const endColor = i === 0 ? new THREE.Color(0x0040aa) : new THREE.Color(0xaaccff);
+            const tempColor = new THREE.Color();
+            
+            // Initialize particle arrays
+            for (let j = 0; j < particleCount; j++) {
+                const j3 = j * 3;
+                
+                // Start all particles at the wing position
+                positionArray[j3] = wingPositions[i].x;
+                positionArray[j3 + 1] = wingPositions[i].y;
+                positionArray[j3 + 2] = wingPositions[i].z;
+                
+                // Set color gradient from start to end color
+                const ratio = j / particleCount;
+                tempColor.copy(startColor).lerp(endColor, ratio);
+                tempColor.toArray(colorArray, j3);
+                
+                // Start with smaller particles that get bigger
+                sizeArray[j] = 0.1 + (j / particleCount) * 0.6;
+                
+                // Start with fully transparent particles
+                opacityArray[j] = 0;
+                
+                // Time offset for animation
+                timeArray[j] = j / particleCount;
+            }
+            
+            // Set geometry attributes
+            trailGeometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
+            trailGeometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+            trailGeometry.setAttribute('size', new THREE.BufferAttribute(sizeArray, 1));
+            trailGeometry.setAttribute('opacity', new THREE.BufferAttribute(opacityArray, 1));
+            trailGeometry.setAttribute('time', new THREE.BufferAttribute(timeArray, 1));
+            
+            // Create particle material
+            const trailMaterial = new THREE.PointsMaterial({
+                size: 0.6,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                vertexColors: true,
+                depthWrite: false, // Prevents particles from occluding each other
+                sizeAttenuation: true
+            });
+            
+            // Create particle system
+            const trail = new THREE.Points(trailGeometry, trailMaterial);
+            
+            // Store reference to particle data for animation
+            trail.userData = {
+                positionArray,
+                sizeArray,
+                opacityArray,
+                timeArray,
+                wingPosition: wingPositions[i].clone(),
+                color: trailColors[i].clone(),
+                endColor: endColor.clone(),
+                lifetime: 3.0, // Increased lifetime for longer trails
+                lastPosition: new THREE.Vector3(),
+                animationOffset: Math.random() * Math.PI * 2 // Random offset for animation
+            };
+            
+            // Add to scene (not as child of plane so that they stay behind when plane moves)
+            this.scene.add(trail);
+            
+            // Add to trails array
+            this.planeTrails.push(trail);
+        }
+    }
+    
+    // Remove plane trails
+    removePlaneTrails() {
+        this.planeTrails.forEach(trail => {
+            if (trail.parent) {
+                trail.parent.remove(trail);
+            }
+            
+            // Dispose geometry and material
+            if (trail.geometry) trail.geometry.dispose();
+            if (trail.material) trail.material.dispose();
+        });
+        
+        this.planeTrails = [];
+    }
+    
+    // Update plane trails - call this in the game update loop
+    updatePlaneTrails(delta) {
+        if (!this.currentCar || this.planeTrails.length === 0) return;
+        
+        // Check if the current vehicle is an airplane
+        if (this.currentVehicleData && this.currentVehicleData.id === 'airplane') {
+            const car = this.currentCar;
+            
+            // Always consider the plane as flying if it's the airplane model
+            const isFlying = true;
+            
+            // Update each trail
+            this.planeTrails.forEach((trail, index) => {
+                // Get wing position in world space
+                const wingLocal = trail.userData.wingPosition.clone();
+                const wingWorld = wingLocal.clone().applyMatrix4(car.matrixWorld);
+                
+                // Always create trails when flying, regardless of movement
+                if (isFlying) {
+                    // Update animation time offset for pulsing effect
+                    trail.userData.animationOffset += delta * 2;
+                    
+                    // Update particle positions
+                    const positions = trail.geometry.attributes.position.array;
+                    const sizes = trail.geometry.attributes.size.array;
+                    const opacities = trail.geometry.attributes.opacity.array;
+                    const times = trail.geometry.attributes.time.array;
+                    
+                    // Shift all particles one position back
+                    for (let i = positions.length / 3 - 1; i > 0; i--) {
+                        const i3 = i * 3;
+                        const prev3 = (i - 1) * 3;
+                        
+                        // Copy position from previous particle
+                        positions[i3] = positions[prev3];
+                        positions[i3 + 1] = positions[prev3 + 1];
+                        positions[i3 + 2] = positions[prev3 + 2];
+                        
+                        // Update time
+                        times[i] = times[i - 1] + delta;
+                        
+                        // Calculate lifetime ratio (0 to 1)
+                        const lifeRatio = times[i] / trail.userData.lifetime;
+                        
+                        // Fade out based on time with pulsing effect
+                        const pulse = 0.2 * Math.sin(times[i] * 10 + trail.userData.animationOffset);
+                        opacities[i] = Math.max(0, (1.0 - lifeRatio) + pulse);
+                        
+                        // Make particles grow with age and add subtle wobble
+                        const wobble = 0.1 * Math.sin(times[i] * 5 + trail.userData.animationOffset * 0.7);
+                        sizes[i] = 0.1 + Math.min(1.0, times[i] * 0.5) + wobble;
+                        
+                        // Add subtle sideways drift to particles for more natural look
+                        if (i % 3 === 0) { // Only apply to some particles
+                            positions[i3] += Math.sin(times[i] * 2) * 0.02;
+                            positions[i3 + 2] += Math.cos(times[i] * 2) * 0.02;
+                        }
+                    }
+                    
+                    // Set the first particle to current wing position
+                    positions[0] = wingWorld.x;
+                    positions[1] = wingWorld.y;
+                    positions[2] = wingWorld.z;
+                    times[0] = 0;
+                    opacities[0] = 1.0;
+                    sizes[0] = 0.1;
+                    
+                    // Mark attributes for update
+                    trail.geometry.attributes.position.needsUpdate = true;
+                    trail.geometry.attributes.size.needsUpdate = true;
+                    trail.geometry.attributes.opacity.needsUpdate = true;
+                    trail.geometry.attributes.time.needsUpdate = true;
+                    
+                    // Update last position
+                    trail.userData.lastPosition.copy(wingWorld);
+                }
+            });
+        }
     }
 }
 

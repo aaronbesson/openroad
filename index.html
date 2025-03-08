@@ -119,6 +119,21 @@
         <div id="player-list" class="player-list"></div>
     </div>
 
+    <!-- Music Player -->
+    <div id="music-player" class="music-player">
+        <div class="music-controls">
+            <select id="audio-source" class="audio-select">
+                <option value="soundtrack">🎵 Main Soundtrack</option>
+                <option value="scorch-radio">📻 Scorch Radio</option>
+            </select>
+            <div class="player-controls">
+                <button id="play-pause">▶️</button>
+                <input type="range" id="volume-slider" min="0" max="100" value="70">
+                <span id="volume-icon">🔊</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Load required libraries -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>

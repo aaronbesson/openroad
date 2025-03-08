@@ -4,6 +4,15 @@ import VehicleManager from './modules/vehicle.js';
 import CollectiblesManager from './modules/collectibles.js';
 import MultiplayerManager from './modules/multiplayer.js';
 import TrapsManager from './modules/traps.js';
+import MusicPlayer from './musicPlayer.js';
+
+// Initialize music player
+const musicPlayer = new MusicPlayer();
+
+// Add event listener for join button to start soundtrack
+document.getElementById('join-button').addEventListener('click', () => {
+    musicPlayer.startMainSoundtrack();
+});
 
 class GameEngine {
     constructor() {
@@ -12,7 +21,7 @@ class GameEngine {
         
         // Initialize THREE.js components
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(33, window.innerWidth / window.innerHeight, 0.2, 1000);
+        this.camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, 0.2, 1000);
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.loader = new THREE.GLTFLoader();
         this.clock = new THREE.Clock();
@@ -1512,7 +1521,7 @@ class GameEngine {
     createBombFuseEffect(bomb) {
         // Create a point light for the bomb (glowing effect)
         const light = new THREE.PointLight(0xff6600, 2, 6);
-        light.position.set(0, 2, 0); // Position light at the top of the bomb
+        light.position.set(0, 0.5, 0); // Lower the light position
         bomb.add(light);
         
         // Create a particle system for sparks
@@ -1526,11 +1535,11 @@ class GameEngine {
             // Position around the top of the bomb
             const i3 = i * 3;
             positionArray[i3] = (Math.random() - 0.5) * 0.5; // x
-            positionArray[i3 + 1] = 2 + Math.random() * 0.5; // y - top of the bomb
+            positionArray[i3 + 1] = 0.5 + Math.random() * 0.3; // y - just above the bomb top
             positionArray[i3 + 2] = (Math.random() - 0.5) * 0.5; // z
             
             // Random sizes for particles
-            sizeArray[i] = Math.random() * 0.3 + 0.1;
+            sizeArray[i] = Math.random() * 0.2 + 0.1; // Slightly smaller particles
         }
         
         sparkGeometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
@@ -1539,7 +1548,7 @@ class GameEngine {
         // Create a material for sparks
         const sparkMaterial = new THREE.PointsMaterial({
             color: 0xffaa00,
-            size: 0.5,
+            size: 0.3, // Reduced base size
             transparent: true,
             blending: THREE.AdditiveBlending,
             sizeAttenuation: true
@@ -1585,16 +1594,16 @@ class GameEngine {
                 positions[i3 + 1] += (Math.random() - 0.3) * 0.05; // Bias upward
                 positions[i3 + 2] += (Math.random() - 0.5) * 0.05;
                 
-                // Keep particles near the top of the bomb
-                if (positions[i3 + 1] < 1.8) positions[i3 + 1] = 2.2;
-                if (positions[i3 + 1] > 2.5) positions[i3 + 1] = 2.2;
+                // Keep particles near the top of the bomb (adjusted height range)
+                if (positions[i3 + 1] < 0.4) positions[i3 + 1] = 0.5;
+                if (positions[i3 + 1] > 0.8) positions[i3 + 1] = 0.5;
                 
                 // Limit horizontal spread
                 if (Math.abs(positions[i3]) > 0.5) positions[i3] *= 0.9;
                 if (Math.abs(positions[i3 + 2]) > 0.5) positions[i3 + 2] *= 0.9;
                 
                 // Randomize size for sparkle effect
-                sizes[i] = Math.random() * 0.3 + 0.1;
+                sizes[i] = Math.random() * 0.2 + 0.1; // Slightly smaller particles
             }
             
             // Update the geometry

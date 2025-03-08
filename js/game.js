@@ -26,6 +26,8 @@ class GameEngine {
         this.controlsDisabled = false;
         this.controlsDisabledTimeout = null;
         this.startLinePosition = null; // Will store the start/finish line position
+        this.canResetCar = false; // Prevents reset at game start
+        this.offTrackStartTime = null; // Tracks when car went off track
         
         // Keyboard controls - moved from prototype to instance property for better initialization
         this.keys = {
@@ -55,6 +57,11 @@ class GameEngine {
         
         // Initialize the game
         this.init();
+        
+        // Set timeout to allow car resets after 3 seconds
+        setTimeout(() => {
+            this.canResetCar = true;
+        }, 3000);
     }
     
     // Initialize the game
@@ -792,6 +799,38 @@ class GameEngine {
             // Always adjust car height, even when not moving
             this.adjustCarHeight(car);
             
+            // Check if car is on track or off track
+            if (this.canResetCar) {
+                const isOnTrack = this.isCarOnTrack(car);
+                
+                if (!isOnTrack) {
+                    // Car is off track - start or continue the timer
+                    if (this.offTrackStartTime === null) {
+                        // First time off track - start the timer
+                        this.offTrackStartTime = Date.now();
+                        console.log("Car went off track, timer started");
+                    } else {
+                        // Already off track - check the timer
+                        const offTrackDuration = Date.now() - this.offTrackStartTime;
+                        
+                        // If off track for more than 1 second, reset car
+                        if (offTrackDuration > 1000) {
+                            console.log("Car off track for 1+ second, resetting to start");
+                            this.resetCarToStart(car);
+                            this.offTrackStartTime = null; // Reset timer
+                            // Ensure position update is sent to server
+                            this.multiplayerManager.emitPlayerMovement(car);
+                        }
+                    }
+                } else {
+                    // Car is back on track - reset the timer
+                    if (this.offTrackStartTime !== null) {
+                        console.log("Car back on track, timer reset");
+                        this.offTrackStartTime = null;
+                    }
+                }
+            }
+            
             // If car moved, send update to server
             if (hasMoved) {
                 this.multiplayerManager.emitPlayerMovement(car);
@@ -979,6 +1018,110 @@ class GameEngine {
         
         // Smooth the transition even more with lerp
         car.position.y = car.position.y * 0.9 + targetHeight * 0.1;
+    }
+    
+    // Reset car to the start position
+    resetCarToStart(car) {
+        // Calculate the midpoint of the first straight section
+        const p1 = new THREE.Vector3(-63.5, 0.1, -63.5); // Start of straight
+        const p2 = new THREE.Vector3(63.5, 0.1, -63.5);  // End of straight
+        
+        // Calculate the middle of the straight section (this is where the start/finish line is)
+        const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+        
+        // Position slightly above ground to avoid clipping
+        midpoint.y = 0.5;
+        
+        // Reset to start position at the middle of the straight section
+        car.position.copy(midpoint);
+        
+        // Rotate 90 degrees CCW to face along the track (toward the first turn)
+        car.rotation.set(0, Math.PI/2, 0);
+        
+        // Disable track checking for 2 seconds to prevent restart loops
+        this.canResetCar = false;
+        setTimeout(() => {
+            this.canResetCar = true;
+        }, 2000);
+        
+        // Visual feedback
+        this.showResetEffect();
+    }
+    
+    // Visual effect for car reset
+    showResetEffect() {
+        // Create a quick flash effect
+        const flash = document.createElement('div');
+        flash.style.position = 'fixed';
+        flash.style.top = '0';
+        flash.style.left = '0';
+        flash.style.width = '100%';
+        flash.style.height = '100%';
+        flash.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+        flash.style.pointerEvents = 'none';
+        flash.style.transition = 'opacity 0.5s';
+        flash.style.zIndex = '1000';
+        
+        document.body.appendChild(flash);
+        
+        // Fade out and remove
+        setTimeout(() => {
+            flash.style.opacity = '0';
+            setTimeout(() => {
+                document.body.removeChild(flash);
+            }, 500);
+        }, 100);
+    }
+    
+    // Check if the car is on the track
+    isCarOnTrack(car) {
+        // Track points with zero elevation
+        const trackPath = [
+            [-60, 0.1, -60],     // Start point
+            [60, 0.1, -60],      // Long straight section
+            [80, 0.1, -40],      // Turn 1
+            [90, 0.1, -10],      // Turn 2
+            [80, 0.1, 20],       // Turn 3
+            [60, 0.1, 40],       // Turn 4
+            [20, 0.1, 60],       // Turn 5
+            [-20, 0.1, 70],      // Turn 6
+            [-50, 0.1, 60],      // Turn 7
+            [-80, 0.1, 40],      // Turn 8
+            [-90, 0.1, 10],      // Turn 9
+            [-80, 0.1, -20],     // Turn 10
+            [-70, 0.1, -40],     // Turn 11
+            [-60, 0.1, -60]      // Turn 12 and back to start
+        ];
+        
+        // Create curve for distance calculation
+        const curvePoints = [];
+        trackPath.forEach(point => {
+            curvePoints.push(new THREE.Vector3(point[0], point[1], point[2]));
+        });
+        const curve = new THREE.CatmullRomCurve3(curvePoints);
+        curve.closed = true;
+        
+        // Track width plus margin
+        const trackWidth = 8;
+        const trackMargin = 1.5;
+        const maxDistanceFromTrack = trackWidth/2 + trackMargin;
+        
+        // Get closest point on track to car
+        const carPosition = new THREE.Vector3(car.position.x, 0.1, car.position.z);
+        let minDistance = Infinity;
+        const numSamples = 100;
+        
+        for (let i = 0; i < numSamples; i++) {
+            const t = i / numSamples;
+            const pointOnCurve = curve.getPoint(t);
+            const distance = carPosition.distanceTo(pointOnCurve);
+            if (distance < minDistance) {
+                minDistance = distance;
+            }
+        }
+        
+        // Return true if on track, false if off-track
+        return minDistance <= maxDistanceFromTrack;
     }
 }
 

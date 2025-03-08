@@ -249,6 +249,78 @@ class GameEngine {
         // Also set a fog effect that matches the horizon color
         const fogColor = bottomColor.clone().lerp(topColor, 0.3);
         this.scene.fog = new THREE.Fog(fogColor, 500, 3000);
+        
+        // Add fluffy clouds to the sky
+        this.addClouds();
+    }
+    
+    // Add fluffy clouds to the sky
+    addClouds() {
+        const cloudCount = Math.floor(Math.random() * 10) + 24; // Number of clouds to create
+        const skyRadius = 1080; // Slightly smaller than the sky dome
+        const minHeight = Math.random() * 100; // Minimum cloud height
+        const maxHeight = Math.random() * 100; // Maximum cloud height
+        
+        // Cloud material with 50% transparency
+        const cloudMaterial = new THREE.MeshPhongMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.25,
+            flatShading: true
+        });
+        
+        // Create and position random clouds
+        for (let i = 0; i < cloudCount; i++) {
+            // Create a cloud group
+            const cloud = new THREE.Group();
+            
+            // Random cloud size and complexity
+            const cloudSize = 20 + Math.random() * 140;
+            const puffCount = 3 + Math.floor(Math.random() * 5); // 3-7 puffs per cloud
+            
+            // Create cloud puffs
+            for (let j = 0; j < puffCount; j++) {
+                // Create a random puff shape
+                const puffGeometry = new THREE.SphereGeometry(
+                    cloudSize * (0.5 + Math.random() * 0.5), // Random size
+                    8, 8 // Lower poly for better performance
+                );
+                
+                const puff = new THREE.Mesh(puffGeometry, cloudMaterial);
+                
+                // Random position within the cloud
+                const puffSpread = cloudSize * 0.7;
+                puff.position.set(
+                    (Math.random() - 0.5) * puffSpread,
+                    (Math.random() - 0.5) * puffSpread * 0.5, // Less vertical spread
+                    (Math.random() - 0.5) * puffSpread
+                );
+                
+                // Add some random scaling for variety
+                const scale = 0.7 + Math.random() * 0.6;
+                puff.scale.set(scale, scale * 0.8, scale);
+                
+                // Add the puff to the cloud
+                cloud.add(puff);
+            }
+            
+            // Place the cloud in a random position in the sky
+            const angle = Math.random() * Math.PI * 2;
+            const radius = skyRadius * (0.3 + Math.random() * 0.7); // Vary distance from center
+            const height = minHeight + Math.random() * (maxHeight - minHeight);
+            
+            cloud.position.set(
+                Math.cos(angle) * radius,
+                height,
+                Math.sin(angle) * radius
+            );
+            
+            // Randomly rotate the cloud
+            cloud.rotation.y = Math.random() * Math.PI * 2;
+            
+            // Add the cloud to the scene
+            this.scene.add(cloud);
+        }
     }
     
     // Create a flat race track without elevation
@@ -440,7 +512,7 @@ class GameEngine {
         // Create a canvas for the text
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-        canvas.width = 512;
+        canvas.width = 1024;
         canvas.height = 128;
         
         // Draw the text
@@ -1761,9 +1833,9 @@ class GameEngine {
     
     // Apply realistic airplane flight behavior
     applyAirplaneBehavior(plane, delta, inputs, prevPosition, prevRotation) {
-        // Bank (roll) into turns automatically
-        const bankAmount = 0.35; // Maximum bank angle in radians (approx 20 degrees)
-        const bankSpeed = 2.0; // How quickly to bank into turns
+        // Bank (roll) into turns automatically - dramatically increased for visibility
+        const bankAmount = 0.8; // Increased maximum bank angle (about 45 degrees)
+        const bankSpeed = 3.0; // Faster banking response
         
         // Calculate direction and vertical changes
         const positionDelta = plane.position.clone().sub(prevPosition);
@@ -1775,17 +1847,25 @@ class GameEngine {
         // Calculate target roll based on turn direction
         let targetRoll = 0;
         
-        // Apply roll based on turning
-        if (yawChange !== 0) {
-            // Invert the sign because banking left (positive Z) for right turn (negative yaw change)
-            targetRoll = -yawChange * 10 * bankAmount;
-            // Limit maximum bank angle
-            targetRoll = Math.max(Math.min(targetRoll, bankAmount), -bankAmount);
+        // In THREE.js coordinate system:
+        // When turning left (A or left arrow), the plane rotates positively around y-axis (yaw)
+        // When turning right (D or right arrow), the plane rotates negatively around y-axis (yaw)
+        // For banking to look correct:
+        // When turning left, we want the left wing to dip down (negative z rotation)
+        // When turning right, we want the right wing to dip down (positive z rotation)
+        
+        // Apply roll based on turning - check if arrow keys or A/D are being pressed directly
+        if (inputs.turningLeft) {
+            // When turning left, bank left (left wing dips down)
+            targetRoll = -bankAmount;  // Negative for left bank
+        } else if (inputs.turningRight) {
+            // When turning right, bank right (right wing dips down)
+            targetRoll = bankAmount;   // Positive for right bank
         }
         
         // Only apply automatic banking if player is not manually rolling
         if (!inputs.rollingLeft && !inputs.rollingRight) {
-            // Smooth transition to target roll
+            // Smooth transition to target roll, but faster response
             plane.rotation.z = THREE.MathUtils.lerp(
                 plane.rotation.z,
                 targetRoll,
@@ -1794,20 +1874,31 @@ class GameEngine {
         }
         
         // Apply automatic pitch based on vertical movement
-        const pitchAmount = 0.3; // Maximum auto-pitch in radians (approx 17 degrees)
-        const pitchSpeed = 1.5; // How quickly to pitch
+        const pitchAmount = 0.5; // Increased maximum auto-pitch (about 28 degrees)
+        const pitchSpeed = 2.0; // Faster pitch response
         
-        // Calculate target pitch based on vertical velocity
+        // Calculate target pitch based on input
         let targetPitch = 0;
         
-        if (verticalChange !== 0) {
-            // Negative pitch (looking up) when ascending, positive (looking down) when descending
-            targetPitch = -Math.sign(verticalChange) * Math.min(Math.abs(verticalChange * 5), pitchAmount);
+        // In THREE.js coordinate system:
+        // Positive rotation around X-axis tilts the nose down
+        // Negative rotation around X-axis tilts the nose up
+        // For correct pitch behavior:
+        // When ascending (Q key), we want nose up (negative x rotation)
+        // When descending (E key), we want nose down (positive x rotation)
+        
+        // Direct mapping from keys to pitch
+        if (inputs.ascending) {
+            // When ascending, pitch up (negative x rotation - nose up)
+            targetPitch = -pitchAmount;
+        } else if (inputs.descending) {
+            // When descending, pitch down (positive x rotation - nose down)
+            targetPitch = pitchAmount;
         }
         
         // Only apply automatic pitching if player is not manually pitching
         if (!inputs.pitchingUp && !inputs.pitchingDown) {
-            // Smooth transition to target pitch
+            // Smooth transition to target pitch, but faster response
             plane.rotation.x = THREE.MathUtils.lerp(
                 plane.rotation.x,
                 targetPitch,

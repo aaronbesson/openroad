@@ -352,9 +352,10 @@ class VehicleManager {
             position = new THREE.Vector3(randomX, 0.1, randomZ);
         }
         
-        // If this is the airplane, set its Y position higher for flying
+        // All vehicles, including airplane, start on the ground
+        // Only slightly adjust the height of the plane to account for model differences
         if (isAirplane) {
-            position.y = 30; // Start the airplane high in the air
+            position.y = 0.5; // Just slightly above ground to prevent clipping
         }
         
         return {
@@ -582,7 +583,10 @@ class VehicleManager {
                 tempColor.toArray(colorArray, j3);
                 
                 // Start with smaller particles that get bigger
-                sizeArray[j] = 0.1 + (j / particleCount) * 0.6;
+                sizeArray[j] = 0.1 + (j / particleCount) * 0.8; // Slightly larger particles
+
+                //particle opacity
+                opacityArray[j] = 0.5;
                 
                 // Start with fully transparent particles
                 opacityArray[j] = 0;
@@ -600,12 +604,14 @@ class VehicleManager {
             
             // Create particle material
             const trailMaterial = new THREE.PointsMaterial({
-                size: 0.6,
+                size: 0.8, // Slightly larger base size for more visible but translucent particles
                 transparent: true,
+                opacity: 0.75, // Base material opacity reduced
                 blending: THREE.AdditiveBlending,
                 vertexColors: true,
                 depthWrite: false, // Prevents particles from occluding each other
-                sizeAttenuation: true
+                sizeAttenuation: true,
+                alphaTest: 0.01 // Help with rendering translucent particles
             });
             
             // Create particle system
@@ -620,9 +626,10 @@ class VehicleManager {
                 wingPosition: wingPositions[i].clone(),
                 color: trailColors[i].clone(),
                 endColor: endColor.clone(),
-                lifetime: 3.0, // Increased lifetime for longer trails
+                lifetime: 3.5, // Increased lifetime for longer trails
                 lastPosition: new THREE.Vector3(),
-                animationOffset: Math.random() * Math.PI * 2 // Random offset for animation
+                animationOffset: Math.random() * Math.PI * 2, // Random offset for animation
+                maxOpacity: 0.65 // Maximum opacity for any particle
             };
             
             // Add to scene (not as child of plane so that they stay behind when plane moves)
@@ -656,8 +663,10 @@ class VehicleManager {
         if (this.currentVehicleData && this.currentVehicleData.id === 'airplane') {
             const car = this.currentCar;
             
-            // Always consider the plane as flying if it's the airplane model
-            const isFlying = true;
+            // Only show trails when the plane is actually in the air (flying)
+            // Consider the plane as flying if it's above a minimum height
+            const minFlyingHeight = 5.0; // Plane is considered flying when above this height
+            const isFlying = car.position.y > minFlyingHeight;
             
             // Update each trail
             this.planeTrails.forEach((trail, index) => {
@@ -692,18 +701,22 @@ class VehicleManager {
                         // Calculate lifetime ratio (0 to 1)
                         const lifeRatio = times[i] / trail.userData.lifetime;
                         
-                        // Fade out based on time with pulsing effect
-                        const pulse = 0.2 * Math.sin(times[i] * 10 + trail.userData.animationOffset);
-                        opacities[i] = Math.max(0, (1.0 - lifeRatio) + pulse);
+                        // More translucent particles with gentler opacity curve
+                        // Start fading faster, then slow down for a wispy tail effect
+                        const opacityCurve = Math.pow(1.0 - lifeRatio, 1.5);
+                        const pulse = 0.1 * Math.sin(times[i] * 8 + trail.userData.animationOffset);
                         
-                        // Make particles grow with age and add subtle wobble
+                        // Apply max opacity limit for translucency
+                        opacities[i] = Math.max(0, Math.min(opacityCurve + pulse, trail.userData.maxOpacity));
+                        
+                        // Make particles grow more with age for more diffuse smoke
                         const wobble = 0.1 * Math.sin(times[i] * 5 + trail.userData.animationOffset * 0.7);
-                        sizes[i] = 0.1 + Math.min(1.0, times[i] * 0.5) + wobble;
+                        sizes[i] = 0.1 + Math.min(1.5, Math.pow(times[i], 0.8) * 0.7) + wobble;
                         
-                        // Add subtle sideways drift to particles for more natural look
-                        if (i % 3 === 0) { // Only apply to some particles
-                            positions[i3] += Math.sin(times[i] * 2) * 0.02;
-                            positions[i3 + 2] += Math.cos(times[i] * 2) * 0.02;
+                        // Add subtle sideways drift to particles for more natural smoke look
+                        if (i % 2 === 0) { // Apply to more particles for more movement
+                            positions[i3] += Math.sin(times[i] * 2) * 0.03;
+                            positions[i3 + 2] += Math.cos(times[i] * 2) * 0.03;
                         }
                     }
                     
@@ -712,8 +725,8 @@ class VehicleManager {
                     positions[1] = wingWorld.y;
                     positions[2] = wingWorld.z;
                     times[0] = 0;
-                    opacities[0] = 1.0;
-                    sizes[0] = 0.1;
+                    opacities[0] = trail.userData.maxOpacity * 0.7; // Start partially transparent
+                    sizes[0] = 0.2; // Slightly larger initial size
                     
                     // Mark attributes for update
                     trail.geometry.attributes.position.needsUpdate = true;
@@ -723,6 +736,19 @@ class VehicleManager {
                     
                     // Update last position
                     trail.userData.lastPosition.copy(wingWorld);
+                } else {
+                    // If not flying, fade all particles quickly to make trails disappear
+                    const positions = trail.geometry.attributes.position.array;
+                    const opacities = trail.geometry.attributes.opacity.array;
+                    const times = trail.geometry.attributes.time.array;
+                    
+                    for (let i = 0; i < opacities.length; i++) {
+                        times[i] += delta;
+                        opacities[i] = Math.max(0, opacities[i] - delta * 4); // Very fast fade out
+                    }
+                    
+                    trail.geometry.attributes.opacity.needsUpdate = true;
+                    trail.geometry.attributes.time.needsUpdate = true;
                 }
             });
         }

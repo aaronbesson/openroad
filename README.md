@@ -1,4 +1,4 @@
-# Multiplayer Car Driving Game
+# Open Source Multiplayer Car Driving Game
 
 A 3D multiplayer car driving game where players can join the same scene, drive around a race track, and interact with each other in real-time.
 

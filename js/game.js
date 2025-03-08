@@ -1969,11 +1969,11 @@ class GameEngine {
         
         // Add subtle random movement to make flight look more natural
         if (!inputs.pitchingUp && !inputs.pitchingDown) {
-            plane.rotation.x += Math.sin(time * 2.1) * wobbleAmount;
+            plane.rotation.x += Math.sin(time * 1) * wobbleAmount;
         }
         
         if (!inputs.rollingLeft && !inputs.rollingRight) {
-            plane.rotation.z += Math.sin(time * 1.7) * wobbleAmount;
+            plane.rotation.z += Math.sin(time * 1) * wobbleAmount;
         }
     }
 }

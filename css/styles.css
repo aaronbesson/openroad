@@ -40,6 +40,7 @@ canvas {
     grid-template-columns: 1fr 1fr;
     gap: 10px;
     margin-top: 15px;
+    color: white;
 }
 .stat-bar {
     margin-top: 5px;
@@ -56,6 +57,7 @@ canvas {
     margin-top: 12px;
     font-size: 14px;
     font-family: Arial, Helvetica, sans-serif;
+    color: white;
 }
 /* Player name styles */
 .player-name {
@@ -135,7 +137,7 @@ canvas {
     background: #222;
     padding: 30px;
     border-radius: 8px;
-    width: 600px;
+    width: 420px;
     max-width: 90%;
 }
 .connection-box h2 {
@@ -147,10 +149,12 @@ canvas {
     border-radius: 4px;
     border: none;
     font-size: 16px;
-    width: 100%;
+    border: 4px solid #00FF00;
 }
 .connection-box-input {
+    margin-top: 20px;
     display: flex;
+    flex-direction: column;
     gap: 10px;
 }
 .connection-box button {
@@ -239,4 +243,37 @@ canvas {
     z-index: 900;
     display: none;
     animation: flash 0.5s;
+}
+
+#help {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#vehicle-preview {
+    width: 50%;
+    margin: 0 auto;
+    align-self: center;
+    height: 130px;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+#vehicle-preview-container {
+    width: 100%;
+    height: 90%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#vehicle-preview canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
 } 

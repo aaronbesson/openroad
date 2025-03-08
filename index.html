@@ -27,37 +27,83 @@
     <!-- Connection Screen -->
     <div id="connection-screen" style="display: flex;">
         <div class="connection-box">
+        
+            
+
+            <div id="vehicle-preview-container">
+                <div id="vehicle-preview"></div>
+            </div>
+
             <h1 style="color: white; text-align: center;">🏁Join The Game🏁</h1>
-            <p style="color: white; margin-bottom: 15px;">Enter your name and click "Join Game" to start playing!</p>
+            <h3 style="color: white; text-align: center; padding: 0px 32px;">Select your vehicle and enter your name to start playing!</h3>
+
+            <select id="vehicle-select" class="vehicle-select">
+                <option value="">Loading vehicles...</option>
+            </select>
+            <div class="stats">
+                <div>
+                    <div>Speed:</div>
+                    <div class="stat-bar">
+                        <div id="speed-bar" class="stat-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div>
+                    <div>Handling:</div>
+                    <div class="stat-bar">
+                        <div id="handling-bar" class="stat-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div>
+                    <div>Acceleration:</div>
+                    <div class="stat-bar">
+                        <div id="acceleration-bar" class="stat-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div>
+                    <div>Shield:</div>
+                    <div class="stat-bar">
+                        <div id="shield-bar" class="stat-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="description" class="description"></div>
+            
+
             <div class="connection-box-input">
                 <input type="text" id="player-name" placeholder="Enter your name" value="Your Name">
                 <button id="join-button">🚗 Join Game</button>
             </div>
 
-            <!-- Controls info moved to connection screen -->
-            <div class="controls-container">
-                <div class="controls-info">
-                    <h3>Controls</h3>
-                    <p>Use the following keys to control your vehicle:</p>
-                    <p><span class="controls-key">Up Arrow</span> or <span class="controls-key">W</span> - Accelerate
-                    </p>
-                    <p><span class="controls-key">Down Arrow</span> or <span class="controls-key">S</span> - Brake</p>
-                    <p><span class="controls-key">Left Arrow</span> or <span class="controls-key">A</span> - Turn Left
-                    </p>
-                    <p><span class="controls-key">Right Arrow</span> or <span class="controls-key">D</span> - Turn Right
-                    </p>
-                    <p><span class="controls-key">Space</span> - Toggle Headlights</p>
-                    <p><span class="controls-key">H</span> - Sound Car Horn</p>
-                </div>
 
-                <div class="controls-info">
-                    <h3>Game Features</h3>
-                    <p>• Collect coins around the track to earn points</p>
-                    <p>• Different coins have different values</p>
-                    <p>• Heart items increase your shield protection</p>
-                    <p>• Race against other players</p>
-                    <p>• Try different vehicles with unique capabilities</p>
-                </div>
+        </div>
+    </div>
+
+
+    <div id="help">
+        <!-- Controls info moved to connection screen -->
+        <div class="controls-container">
+            <div class="controls-info">
+                <h3>Controls</h3>
+                <p>Use the following keys to control your vehicle:</p>
+                <p><span class="controls-key">Up Arrow</span> or <span class="controls-key">W</span> - Accelerate
+                </p>
+                <p><span class="controls-key">Down Arrow</span> or <span class="controls-key">S</span> - Brake</p>
+                <p><span class="controls-key">Left Arrow</span> or <span class="controls-key">A</span> - Turn Left
+                </p>
+                <p><span class="controls-key">Right Arrow</span> or <span class="controls-key">D</span> - Turn Right
+                </p>
+                <p><span class="controls-key">Space</span> - Toggle Headlights</p>
+                <p><span class="controls-key">H</span> - Sound Car Horn</p>
+            </div>
+
+            <div class="controls-info">
+                <h3>Game Features</h3>
+                <p>• Collect coins around the track to earn points</p>
+                <p>• Different coins have different values</p>
+                <p>• Heart items increase your shield protection</p>
+                <p>• Race against other players</p>
+                <p>• Try different vehicles with unique capabilities</p>
             </div>
         </div>
     </div>
@@ -69,43 +115,8 @@
     <div id="score-display" class="score-display">SCORE: 000000</div>
 
     <div class="controls">
-        <h3>Select Vehicle</h3>
-        <select id="vehicle-select" class="vehicle-select">
-            <option value="">Loading vehicles...</option>
-        </select>
-        <div class="stats">
-            <div>
-                <div>Speed:</div>
-                <div class="stat-bar">
-                    <div id="speed-bar" class="stat-fill" style="width: 0%"></div>
-                </div>
-            </div>
-            <div>
-                <div>Handling:</div>
-                <div class="stat-bar">
-                    <div id="handling-bar" class="stat-fill" style="width: 0%"></div>
-                </div>
-            </div>
-            <div>
-                <div>Acceleration:</div>
-                <div class="stat-bar">
-                    <div id="acceleration-bar" class="stat-fill" style="width: 0%"></div>
-                </div>
-            </div>
-            <div>
-                <div>Shield:</div>
-                <div class="stat-bar">
-                    <div id="shield-bar" class="stat-fill" style="width: 0%"></div>
-                </div>
-            </div>
-        </div>
-        <div id="description" class="description"></div>
-
-        <!-- Multiplayer info section -->
-        <div class="multiplayer-info">
-            <h5>🚗 Players (<span id="player-count">0</span>)</h5>
-            <div id="player-list" class="player-list"></div>
-        </div>
+        <h5>🚗 Players (<span id="player-count">0</span>)</h5>
+        <div id="player-list" class="player-list"></div>
     </div>
 
     <!-- Load required libraries -->

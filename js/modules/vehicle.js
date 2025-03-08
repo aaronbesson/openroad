@@ -10,6 +10,13 @@ class VehicleManager {
         this.headlights = [];
         this.headlightsOn = true;
         
+        // Preview-related properties
+        this.previewScene = null;
+        this.previewCamera = null;
+        this.previewRenderer = null;
+        this.previewCar = null;
+        this.previewAnimationId = null;
+        
         // DOM Elements
         this.selectElement = document.getElementById('vehicle-select');
         this.speedBar = document.getElementById('speed-bar');
@@ -17,6 +24,7 @@ class VehicleManager {
         this.accelerationBar = document.getElementById('acceleration-bar');
         this.shieldBar = document.getElementById('shield-bar');
         this.descriptionElement = document.getElementById('description');
+        this.previewContainer = document.getElementById('vehicle-preview');
         
         // Bind event listeners
         if (this.selectElement) {
@@ -25,6 +33,11 @@ class VehicleManager {
         
         // Listen for custom events
         document.addEventListener('checkCarLoaded', this.onCheckCarLoaded.bind(this));
+        
+        // Initialize preview if container exists
+        if (this.previewContainer) {
+            this.initPreview();
+        }
     }
     
     // Check if car is loaded (used by multiplayer to check status)
@@ -70,6 +83,7 @@ class VehicleManager {
                     this.selectElement.value = this.vehiclesData[0].id;
                     this.updateVehicleStats(this.vehiclesData[0]);
                     this.loadCar(this.vehiclesData[0].file, false); // Don't emit events yet
+                    this.loadPreviewCar(this.vehiclesData[0].file); // Load preview model
                 }
             }
             
@@ -87,6 +101,7 @@ class VehicleManager {
         const selectedVehicle = this.vehiclesData.find(vehicle => vehicle.id === selectedId);
         if (selectedVehicle) {
             this.loadCar(selectedVehicle.file);
+            this.loadPreviewCar(selectedVehicle.file);
         }
     }
     
@@ -312,6 +327,136 @@ class VehicleManager {
             shield: this.currentVehicleData ? this.currentVehicleData.shield : 0,
             vehicleId: this.currentVehicleData ? this.currentVehicleData.id : null
         };
+    }
+    
+    // Initialize 3D preview container
+    initPreview() {
+        // Create a new scene for the preview
+        this.previewScene = new THREE.Scene();
+        
+        // Set background to #222
+        this.previewScene.background = new THREE.Color(0x222222);
+        
+        // Create camera
+        this.previewCamera = new THREE.PerspectiveCamera(25, this.previewContainer.clientWidth / this.previewContainer.clientHeight, 0.1, 100);
+        this.previewCamera.position.set(0, 2, 4);
+        this.previewCamera.lookAt(0, 0.5, 0);
+        
+        // Create renderer with alpha enabled for transparency
+        this.previewRenderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: true
+        });
+        this.previewRenderer.setSize(this.previewContainer.clientWidth, this.previewContainer.clientHeight);
+        this.previewRenderer.setPixelRatio(window.devicePixelRatio);
+        this.previewRenderer.shadowMap.enabled = true;
+        this.previewRenderer.setClearColor(0x000000, 0); // Transparent background
+        
+        // Add renderer to DOM
+        this.previewContainer.appendChild(this.previewRenderer.domElement);
+        
+        // Add lights to preview scene
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+        this.previewScene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        this.previewScene.add(directionalLight);
+        
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(-5, 3, -5);
+        this.previewScene.add(pointLight);
+        
+
+        
+        // Start animation loop
+        this.animatePreview();
+        
+        // Handle window resize
+        window.addEventListener('resize', this.onPreviewResize.bind(this));
+    }
+    
+    // Handle preview container resize
+    onPreviewResize() {
+        if (!this.previewContainer || !this.previewCamera || !this.previewRenderer) return;
+        
+        this.previewCamera.aspect = this.previewContainer.clientWidth / this.previewContainer.clientHeight;
+        this.previewCamera.updateProjectionMatrix();
+        this.previewRenderer.setSize(this.previewContainer.clientWidth, this.previewContainer.clientHeight);
+    }
+    
+    // Load car model for preview
+    loadPreviewCar(modelFile) {
+        if (!this.previewScene || !this.loader) return;
+        
+        // Remove previous preview car if exists
+        if (this.previewCar) {
+            this.previewScene.remove(this.previewCar);
+            this.previewCar = null;
+        }
+        
+        this.loader.load(
+            'models/' + modelFile,
+            (gltf) => {
+                this.previewCar = gltf.scene.clone();
+                
+                // Scale and position the car for better visibility
+                const box = new THREE.Box3().setFromObject(this.previewCar);
+                const size = box.getSize(new THREE.Vector3()).length();
+                const scale = 2.5 / size;
+                
+                this.previewCar.scale.set(scale, scale, scale);
+                
+                // Center the car
+                box.setFromObject(this.previewCar);
+                box.getCenter(this.previewCar.position);
+                this.previewCar.position.multiplyScalar(-1);
+                this.previewCar.position.y = 0.05; // Slight lift from ground
+                
+                // Add car to preview scene
+                this.previewScene.add(this.previewCar);
+                
+                console.log('Preview car loaded:', modelFile);
+            },
+            (xhr) => {
+                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+            },
+            (error) => {
+                console.error('Error loading preview car model:', error);
+            }
+        );
+    }
+    
+    // Animation loop for preview car rotation
+    animatePreview() {
+        if (!this.previewScene || !this.previewCamera || !this.previewRenderer) return;
+        
+        this.previewAnimationId = requestAnimationFrame(this.animatePreview.bind(this));
+        
+        // Rotate the car slowly
+        if (this.previewCar) {
+            this.previewCar.rotation.y += 0.01;
+        }
+        
+        // Render the scene
+        this.previewRenderer.render(this.previewScene, this.previewCamera);
+    }
+    
+    // Clean up preview resources
+    disposePreview() {
+        if (this.previewAnimationId) {
+            cancelAnimationFrame(this.previewAnimationId);
+        }
+        
+        if (this.previewRenderer && this.previewContainer) {
+            this.previewContainer.removeChild(this.previewRenderer.domElement);
+        }
+        
+        this.previewScene = null;
+        this.previewCamera = null;
+        this.previewRenderer = null;
+        this.previewCar = null;
     }
 }
 

@@ -471,14 +471,25 @@ class GameEngine {
         return this.startLinePosition;
     }
     
-
-    // Setup lighting
+    // Setup lighting with time-based intensity
     setupLighting() {
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.15);
+        const currentTime = new Date();
+        const utcHour = currentTime.getUTCHours() - 4; // Adjust for UTC-4
+        const hour = (utcHour + 24) % 24; // Ensure hour is within 0-23
+
+        // Determine light intensity based on time
+        let lightIntensity;
+        if (hour >= 6 && hour < 18) {
+            lightIntensity = 0.95; // Daytime
+        } else {
+            lightIntensity = 0.35; // Nighttime
+        }
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, lightIntensity);
         directionalLight.position.set(1, 1, 1).normalize();
         this.scene.add(directionalLight);
-        
-        const ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.2);
+
+        const ambientLight = new THREE.AmbientLight(0xFFFFFF, lightIntensity * 0.3);
         this.scene.add(ambientLight);
     }
     
